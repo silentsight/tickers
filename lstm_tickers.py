@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
+from keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -27,7 +28,7 @@ def predict_stock(ticker):
         return np.array(x), np.array(y)
 
     # Create sequences
-    sequence_length = 120 # Uses the past days to forecast
+    sequence_length = 60 # Uses the past days to forecast
     x, y = create_sequences(data_scaled, sequence_length)
 
     # Split the data into training and testing data
@@ -51,7 +52,7 @@ def predict_stock(ticker):
     ])
 
     # Compile the model
-    model.compile(optimizer='adam', loss='mse')
+    model.compile(optimizer=Adam(learning_rate=0.0001), loss='mse')
 
     # Train the model
     model.fit(x_train, y_train, epochs=50, batch_size=32)
