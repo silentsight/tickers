@@ -6,6 +6,8 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import yfinance as yf
 
+#Attempt at predicting with a basic lstm model that includes stock historical data and volume
+
 def predict_stock(ticker):
     # Fetch historical stock data
     df = yf.download(ticker,'2015-01-01','2023-04-30')
