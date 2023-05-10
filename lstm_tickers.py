@@ -27,7 +27,7 @@ def predict_stock(ticker):
         return np.array(x), np.array(y)
 
     # Create sequences
-    sequence_length = 30
+    sequence_length = 120 # Uses the past days to forecast
     x, y = create_sequences(data_scaled, sequence_length)
 
     # Split the data into training and testing data
