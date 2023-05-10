@@ -58,11 +58,11 @@ def predict_stock(ticker):
     # Reverse the scaling for the predictions
     predictions = scaler.inverse_transform(predictions)
 
-    # Now let's use the model to predict the next 30 days
+    # Now let's use the model to predict the next 7 days
     new_df = data_scaled[-sequence_length:].copy()
     forecast = []
 
-    for _ in range(sequence_length):
+    for _ in range(7):  # Change this to 7
         new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], 1))
         predicted_price = model.predict(new_df_scaled)
         forecast.append(predicted_price[0])
@@ -71,22 +71,25 @@ def predict_stock(ticker):
     # Reverse the scaling for the forecast
     forecast = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-    print("The forecast for the next 30 days is: ", forecast)
+    print("The forecast for the next 7 days is: ", forecast)
 
-    # Create a DataFrame for the last month of actual prices
-    last_month = df['Close'].tail(sequence_length)
+    # Create a DataFrame for the last week of actual prices
+    last_week = df['Close'].tail(7)  # Change this to 7
 
-    # Get the day after the last day in last_month
-    start_date = last_month.index[-1] + pd.DateOffset(days=1)
+    # Get the day after the last day in last_week
+    start_date = last_week.index[-1] + pd.DateOffset(days=1)
 
     # Generate the dates for the forecast
-    forecast_dates = pd.date_range(start=start_date, periods=sequence_length)
+    forecast_dates = pd.date_range(start=start_date, periods=7)  # Change this to 7
 
     # Create a DataFrame for the forecast using these dates
-    forecast_month = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
+    forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
 
     # Concatenate the actual and forecasted prices
-    result = pd.concat([last_month, forecast_month], axis=1)
+    result = pd.concat([last_week, forecast_week], axis=1)
+
+    # Calculate the percentage of change
+    result['Percentage Change'] = result['Forecast'].pct_change() * 100
     print(result)
 
     # Plot the actual, training, testing and forecasted prices
@@ -94,7 +97,7 @@ def predict_stock(ticker):
     plt.plot(df.index[sequence_length:sequence_length+len(y_train)], scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
     plt.plot(df.index[sequence_length+len(y_train)+1:], scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
     plt.plot(df.index[sequence_length+len(y_train)+1:], predictions, color='red', label='Predicted Price')
-    plt.plot(forecast_month, color='orange', label='Extended Prediction')
+    plt.plot(forecast_week, color='orange', label='Extended Prediction')
     plt.title(f'{ticker} Stock Price Prediction')
     plt.xlabel('Date')
     plt.ylabel('Stock Price')
@@ -107,3 +110,4 @@ tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN']
 # Predict each stock
 for ticker in tickers:
     predict_stock(ticker)
+
