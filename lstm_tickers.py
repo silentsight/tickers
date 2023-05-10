@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from keras.models import Sequential
-from keras.layers import LSTM, Dense
+from keras.layers import LSTM, Dense, Dropout
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -41,8 +41,12 @@ def predict_stock(ticker):
 
     # Build the LSTM model
     model = Sequential([
-        LSTM(50, activation='relu', input_shape=(sequence_length, 1), return_sequences=True),
-        LSTM(50, activation='relu'),
+        LSTM(100, activation='relu', input_shape=(sequence_length, 1), return_sequences=True),
+        Dropout(0.2),
+        LSTM(100, activation='relu', return_sequences=True),
+        Dropout(0.2),
+        LSTM(100, activation='relu'),
+        Dropout(0.2),
         Dense(1)
     ])
 
@@ -110,4 +114,3 @@ tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN']
 # Predict each stock
 for ticker in tickers:
     predict_stock(ticker)
-
