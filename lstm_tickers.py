@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
+from keras.layers import GRU, Conv1D, MaxPooling1D
 from keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ import math
 
 def predict_stock(ticker):
     # Fetch historical stock data
-    df = yf.download(ticker,'2015-01-01','2023-05-10')
+    df = yf.download(ticker,'2015-01-01','2023-05-11')
 
     # Use only close prices
     df = df[['Close']]
@@ -135,13 +136,13 @@ def predict_stock(ticker):
     x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
     x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
-    # Build the LSTM model
+    # Build the CNN-GRU model
     model = Sequential([
-        LSTM(100, activation='relu', input_shape=(sequence_length, 1), return_sequences=True),
+        Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(sequence_length, 1)),
+        MaxPooling1D(pool_size=2),
+        GRU(100, activation='relu', return_sequences=True),
         Dropout(0.2),
-        LSTM(100, activation='relu', return_sequences=True),
-        Dropout(0.2),
-        LSTM(100, activation='relu'),
+        GRU(100, activation='relu'),
         Dropout(0.2),
         Dense(1)
     ])
