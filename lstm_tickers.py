@@ -10,6 +10,9 @@ from scipy.stats import kurtosis, skew
 import seaborn as sns
 import math
 
+SEQUENCE = 60
+PERIOD= 14
+
 def predict_stock(ticker):
     # Fetch historical stock data
     df = yf.download(ticker,'2015-01-01','2023-05-11')
@@ -130,7 +133,7 @@ def predict_stock(ticker):
         return np.array(x), np.array(y).reshape(-1, 1)
 
     # Create sequences
-    sequence_length = 60 # Adjust sequence length
+    sequence_length = SEQUENCE # Adjust sequence length
     x, y = create_sequences(data_scaled, sequence_length)
 
     # Split the data into training and testing data
@@ -161,13 +164,13 @@ def predict_stock(ticker):
     # Reverse the scaling for the predictions
     predictions = close_scaler.inverse_transform(predictions)
 
-    # Now let's use the model to predict the next 7 days
+    # Now let's use the model to predict the next 14 days
     new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 6)
     forecast = []
 
     df['Close'] = close_scaler.inverse_transform(df[['Close']])
 
-    for _ in range(7):  # Change this to 7
+    for _ in range(PERIOD):  # Change this to 14
         new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
         predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
         # Propagate the last features
@@ -180,16 +183,16 @@ def predict_stock(ticker):
     # Reverse the scaling for the forecast
     forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-    print("The forecast for the next 7 days is: ", forecast)
+    print("The forecast for the next 14 days is: ", forecast)
 
     # Create a DataFrame for the last week of actual prices
-    last_week = df['Close'].tail(7)  # Change this to 7
+    last_week = df['Close'].tail(PERIOD)  # Change this to 14
 
     # Get the day after the last day in last_week
     start_date = last_week.index[-1] + pd.DateOffset(days=1)
 
     # Generate the dates for the forecast
-    forecast_dates = pd.date_range(start=start_date, periods=7)  # Change this to 7
+    forecast_dates = pd.date_range(start=start_date, periods=PERIOD)  # Change this to 14
 
     # Create a DataFrame for the forecast using these dates
     forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
@@ -214,9 +217,8 @@ def predict_stock(ticker):
     plt.show()
 
 # List of stock tickers you are interested in
-tickers = ['INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
+tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
 
 # Predict each stock
 for ticker in tickers:
     predict_stock(ticker)
-
