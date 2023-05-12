@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Dropout
-from keras.layers import GRU, Conv1D, MaxPooling1D
+from keras.layers import LSTM, Dense, Dropout, GRU, Conv1D, MaxPooling1D
 from keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
@@ -39,10 +38,6 @@ def predict_stock(ticker):
     # Calculate skewness and kurtosis
     skewness = skew(df['Log_Returns'].dropna())
     kurt = kurtosis(df['Log_Returns'].dropna())
-
-    # Normalize the data
-    scaler = MinMaxScaler()
-    data_scaled = scaler.fit_transform(df['Close'].values.reshape(-1,1))
 
     # Monte Carlo Simulation
     log_returns = np.log(1 + df['Close'].pct_change())
@@ -114,17 +109,28 @@ def predict_stock(ticker):
     })
     print(results)
 
+    # Drop the rows with missing values
+    df = df.dropna()
+
+    # Normalize the data
+    scaler = MinMaxScaler()
+    data_scaled = scaler.fit_transform(df)
+
+    # Add another scaler for 'Close' prices only
+    close_scaler = MinMaxScaler()
+    df[['Close']] = close_scaler.fit_transform(df[['Close']])
+
     # Function to create sequences
     def create_sequences(data, sequence_length):
         x = []
         y = []
         for i in range(len(data) - sequence_length - 1):
-            x.append(data[i:(i + sequence_length), 0])
-            y.append(data[i + sequence_length, 0])
-        return np.array(x), np.array(y)
+            x.append(data[i:(i + sequence_length), :])
+            y.append(data[i + sequence_length, 0])  # Predict the next 'Close' price
+        return np.array(x), np.array(y).reshape(-1, 1)
 
     # Create sequences
-    sequence_length = 60 # Uses the past days to forecast
+    sequence_length = 60 # Adjust sequence length
     x, y = create_sequences(data_scaled, sequence_length)
 
     # Split the data into training and testing data
@@ -132,13 +138,9 @@ def predict_stock(ticker):
     x_train, x_test = x[:train_length], x[train_length:]
     y_train, y_test = y[:train_length], y[train_length:]
 
-    # Reshape the data into three dimensions [samples, timesteps, features]
-    x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-    x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
-
     # Build the CNN-GRU model
     model = Sequential([
-        Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(sequence_length, 1)),
+        Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(sequence_length, 6)),
         MaxPooling1D(pool_size=2),
         GRU(100, activation='relu', return_sequences=True),
         Dropout(0.2),
@@ -157,20 +159,26 @@ def predict_stock(ticker):
     predictions = model.predict(x_test)
 
     # Reverse the scaling for the predictions
-    predictions = scaler.inverse_transform(predictions)
+    predictions = close_scaler.inverse_transform(predictions)
 
     # Now let's use the model to predict the next 7 days
-    new_df = data_scaled[-sequence_length:].copy()
+    new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 6)
     forecast = []
 
+    df['Close'] = close_scaler.inverse_transform(df[['Close']])
+
     for _ in range(7):  # Change this to 7
-        new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], 1))
-        predicted_price = model.predict(new_df_scaled)
+        new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
+        predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
+        # Propagate the last features
+        last_features = new_df[-1, 1:]
+        new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)  # shape: (1, 6)
+        new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 6)
+
         forecast.append(predicted_price[0])
-        new_df = np.append(new_df[1:], predicted_price)
 
     # Reverse the scaling for the forecast
-    forecast = scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
+    forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
     print("The forecast for the next 7 days is: ", forecast)
 
@@ -195,8 +203,8 @@ def predict_stock(ticker):
 
     # Plot the actual, training, testing and forecasted prices
     plt.figure(figsize=(12, 8))
-    plt.plot(df.index[sequence_length:sequence_length+len(y_train)], scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
-    plt.plot(df.index[sequence_length+len(y_train)+1:], scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
+    plt.plot(df.index[sequence_length:sequence_length+len(y_train)], close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
+    plt.plot(df.index[sequence_length+len(y_train)+1:], close_scaler.inverse_transform(y_test.reshape(-1,1)), color='green', label='Testing Data')
     plt.plot(df.index[sequence_length+len(y_train)+1:], predictions, color='red', label='Predicted Price')
     plt.plot(forecast_week, color='orange', label='Forecasted Price')
     plt.title(f'{ticker} Stock Price Prediction')
