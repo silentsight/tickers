@@ -31,6 +31,9 @@ NUM_FILTERS = 64  # Adjust to control model's capacity to capture features
 KERNEL_SIZE = 3  # Experiment with different kernel sizes
 NUM_POOLING_LAYERS = 1  # Increase to downsample feature maps
 POOL_SIZE = 2  # Adjust to control the amount of downsampling
+HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
+START_DATE = "2023-01-01"
+END_DATE = "2023-05-12"
 
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
@@ -68,7 +71,7 @@ def get_recommendation(score):
     
 def predict_stock(ticker, company_name):
     # Fetch historical stock data
-    df = yf.download(ticker,'2015-01-01','2023-05-11')
+    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
 
     # Use only close prices
     df = df[['Close']]
@@ -239,7 +242,7 @@ def predict_stock(ticker, company_name):
     # Get recommendation based on score
     recommendation = get_recommendation(score)
     print("Recommendation:", recommendation)
-    
+
     # Drop the rows with missing values
     df = df.dropna()
 
