@@ -18,6 +18,47 @@ from ta.trend import macd
 SEQUENCE = 60
 PERIOD= 7
 
+def calculate_recommendation_score(df, sentiment_score):
+    # Define the thresholds for each factor
+    volatility_threshold = 0.30
+    skewness_threshold = 0
+    kurtosis_threshold = 3
+    recent_performance_threshold_1_month = 0.05
+    recent_performance_threshold_6_month = 0.20
+    trend_threshold = 1.05
+    momentum_threshold = 0.05
+    rsi_threshold = 50
+    macd_threshold = 0
+
+    # Calculate the score based on each factor
+    score = 0
+    if df['Volatility'].iloc[-1] < volatility_threshold:
+        score += 1
+    if skewness > skewness_threshold:
+        score += 1
+    if kurt < kurtosis_threshold:
+        score += 1
+    if recent_performance_1_month > recent_performance_threshold_1_month:
+        score += 1
+    if recent_performance_6_month > recent_performance_threshold_6_month:
+        score += 1
+    if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
+        score += 1
+    if momentum > momentum_threshold:
+        score += 1
+    if df['RSI'].iloc[-1] > rsi_threshold:
+        score += 1
+    if df['MACD'].iloc[-1] > macd_threshold:
+        score += 1
+
+    # Adjust the score based on sentiment analysis
+    if sentiment_score >= 0.5:
+        score += 1
+    elif sentiment_score < 0:
+        score -= 1
+
+    return score
+
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
     url = f'https://gnews.io/api/v4/search?q={ticker}&token={api_key}'
@@ -159,7 +200,9 @@ def predict_stock(ticker, company_name):
         'Momentum': [momentum],
         'RSI': [df['RSI'].iloc[-1]],
         'MACD': [df['MACD'].iloc[-1]],
-        'Score': [score]
+        'Score': [score],
+        'Sentiment Score': [sentiment_score],
+        'Score': [calculate_recommendation_score(df, sentiment_score)]
     })
     print(results)
 
