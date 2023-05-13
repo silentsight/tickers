@@ -16,7 +16,21 @@ from ta.momentum import rsi
 from ta.trend import macd
 
 SEQUENCE = 60
-PERIOD= 7
+PERIOD = 7
+
+# Adjustable hyperparameters
+SEQUENCE_LENGTH = 60  # Increase to capture longer-term patterns
+PERIOD = 7  # Adjust to determine the number of days to predict
+LSTM_UNITS = 100  # Increase to capture more complex patterns
+DROPOUT_RATE = 0.2  # Adjust to regularize the model and prevent overfitting
+LEARNING_RATE = 0.0001  # Experiment with different learning rates
+NUM_EPOCHS = 50  # Increase to allow the model to train for more iterations
+BATCH_SIZE = 32  # Adjust based on available memory resources
+NUM_CONV_LAYERS = 1  # Increase to capture more complex patterns
+NUM_FILTERS = 64  # Adjust to control model's capacity to capture features
+KERNEL_SIZE = 3  # Experiment with different kernel sizes
+NUM_POOLING_LAYERS = 1  # Increase to downsample feature maps
+POOL_SIZE = 2  # Adjust to control the amount of downsampling
 
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
@@ -231,7 +245,7 @@ def predict_stock(ticker, company_name):
         return np.array(x), np.array(y).reshape(-1, 1)
 
     # Create sequences
-    sequence_length = SEQUENCE  # Adjust sequence length
+    sequence_length = SEQUENCE_LENGTH  # Adjust sequence length
     x, y = create_sequences(data_scaled, sequence_length)
 
     # Split the data into training and testing data
@@ -240,21 +254,22 @@ def predict_stock(ticker, company_name):
     y_train, y_test = y[:train_length], y[train_length:]
 
     # Build the CNN-GRU model
-    model = Sequential([
-        Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(sequence_length, 8)),
-        MaxPooling1D(pool_size=2),
-        GRU(100, activation='relu', return_sequences=True),
-        Dropout(0.2),
-        GRU(100, activation='relu'),
-        Dropout(0.2),
-        Dense(1)
-    ])
+    model = Sequential()
+    for i in range(NUM_CONV_LAYERS):
+        model.add(Conv1D(filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, activation='relu',
+                         input_shape=(sequence_length, 8)))
+        model.add(MaxPooling1D(pool_size=POOL_SIZE))
+    model.add(GRU(LSTM_UNITS, activation='relu', return_sequences=True))
+    model.add(Dropout(DROPOUT_RATE))
+    model.add(GRU(LSTM_UNITS, activation='relu'))
+    model.add(Dropout(DROPOUT_RATE))
+    model.add(Dense(1))
 
     # Compile the model
-    model.compile(optimizer=Adam(learning_rate=0.0001), loss='mse')
+    model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss='mse')
 
     # Train the model
-    model.fit(x_train, y_train, epochs=50, batch_size=32)
+    model.fit(x_train, y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE)
 
     # Test the model using the test data
     predictions = model.predict(x_test)
@@ -281,7 +296,7 @@ def predict_stock(ticker, company_name):
     # Reverse the scaling for the forecast
     forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-    print("The forecast for the next 14 days is: ", forecast)
+    print("The forecast for the next",PERIOD," days is:", forecast)
 
     # Create a DataFrame for the last week of actual prices
     last_week = df['Close'].tail(PERIOD)  # Change this to 14
