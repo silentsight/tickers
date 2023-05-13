@@ -54,6 +54,18 @@ def tickers_to_company_names(ticker):
 
     return company_name
 
+def get_recommendation(score):
+    if score >= 5:
+        return "Strong Buy (Bullish)"
+    elif score >= 3:
+        return "Buy (Bullish)"
+    elif score <= -5:
+        return "Strong Sell (Bearish)"
+    elif score <= -3:
+        return "Sell (Bearish)"
+    else:
+        return "Hold"
+    
 def predict_stock(ticker, company_name):
     # Fetch historical stock data
     df = yf.download(ticker,'2015-01-01','2023-05-11')
@@ -224,6 +236,10 @@ def predict_stock(ticker, company_name):
     })
     print(results)
 
+    # Get recommendation based on score
+    recommendation = get_recommendation(score)
+    print("Recommendation:", recommendation)
+    
     # Drop the rows with missing values
     df = df.dropna()
 
