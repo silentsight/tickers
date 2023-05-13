@@ -9,16 +9,40 @@ import yfinance as yf
 from scipy.stats import kurtosis, skew
 import seaborn as sns
 import math
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+import requests
 from ta.momentum import rsi
 from ta.trend import macd
 
 SEQUENCE = 60
-PERIOD = 7
+PERIOD= 7
 
+def fetch_news(ticker):
+    api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
+    url = f'https://gnews.io/api/v4/search?q={ticker}&token={api_key}'
+    response = requests.get(url)
+    articles = response.json().get('articles', [])
+    return articles
 
-def predict_stock(ticker):
+# Function to calculate sentiment score using NLTK's Vader SentimentIntensityAnalyzer
+def calculate_sentiment_score(text):
+    sid = SentimentIntensityAnalyzer()
+    sentiment_score = sid.polarity_scores(text)
+    return sentiment_score['compound']
+
+def tickers_to_company_names(ticker):
+    company_name = []
+    stock = yf.Ticker(ticker)
+    company_name = stock.info.get('longName')
+    if not company_name:
+        print(f"Company name not found for ticker: {ticker}")
+
+    return company_name
+
+def predict_stock(ticker, company_name):
     # Fetch historical stock data
-    df = yf.download(ticker, '2015-01-01', '2023-05-12')
+    df = yf.download(ticker,'2015-01-01','2023-05-11')
 
     # Use only close prices
     df = df[['Close']]
@@ -77,8 +101,9 @@ def predict_stock(ticker):
     plt.figure(figsize=(10, 6))
     plt.plot(price_list)
     plt.title(f'{ticker} Monte Carlo Simulation')
-    plt.show
-    # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, momentum, RSI, and MACD
+    plt.show()
+
+    # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
     volatility_threshold = 0.30  # This is an example, you can adjust this value
     skewness_threshold = 0  # This is an example, you can adjust this value
     kurtosis_threshold = 3  # This is an example, you can adjust this value
@@ -138,6 +163,24 @@ def predict_stock(ticker):
     })
     print(results)
 
+    # Fetch news articles for the stock ticker and company name
+    articles = fetch_news(ticker) + fetch_news(company_name)
+
+    if len(articles) == 0:
+            print(f"No news articles found for ",ticker," or ",company_name)
+    else:
+        sentiment_scores = []
+        for article in articles:
+            title = article['title']
+            description = article['description']
+            content = article['content']
+            text = f'{title} {description} {content}'
+            sentiment_score = calculate_sentiment_score(text)
+            sentiment_scores.append(sentiment_score)
+
+        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+        print(f"Average Sentiment Scores: {average_sentiment}")
+
     # Drop the rows with missing values
     df = df.dropna()
 
@@ -148,6 +191,7 @@ def predict_stock(ticker):
     # Add another scaler for 'Close' prices only
     close_scaler = MinMaxScaler()
     df[['Close']] = close_scaler.fit_transform(df[['Close']])
+
     # Function to create sequences
     def create_sequences(data, sequence_length):
         x = []
@@ -248,4 +292,5 @@ tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
 
 # Predict each stock
 for ticker in tickers:
-    predict_stock(ticker)
+    company_name = tickers_to_company_names(ticker)
+    predict_stock(ticker, company_name)
