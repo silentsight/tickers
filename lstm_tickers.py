@@ -18,47 +18,6 @@ from ta.trend import macd
 SEQUENCE = 60
 PERIOD= 7
 
-def calculate_recommendation_score(df, sentiment_score):
-    # Define the thresholds for each factor
-    volatility_threshold = 0.30
-    skewness_threshold = 0
-    kurtosis_threshold = 3
-    recent_performance_threshold_1_month = 0.05
-    recent_performance_threshold_6_month = 0.20
-    trend_threshold = 1.05
-    momentum_threshold = 0.05
-    rsi_threshold = 50
-    macd_threshold = 0
-
-    # Calculate the score based on each factor
-    score = 0
-    if df['Volatility'].iloc[-1] < volatility_threshold:
-        score += 1
-    if skewness > skewness_threshold:
-        score += 1
-    if kurt < kurtosis_threshold:
-        score += 1
-    if recent_performance_1_month > recent_performance_threshold_1_month:
-        score += 1
-    if recent_performance_6_month > recent_performance_threshold_6_month:
-        score += 1
-    if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
-        score += 1
-    if momentum > momentum_threshold:
-        score += 1
-    if df['RSI'].iloc[-1] > rsi_threshold:
-        score += 1
-    if df['MACD'].iloc[-1] > macd_threshold:
-        score += 1
-
-    # Adjust the score based on sentiment analysis
-    if sentiment_score >= 0.5:
-        score += 1
-    elif sentiment_score < 0:
-        score -= 1
-
-    return score
-
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
     url = f'https://gnews.io/api/v4/search?q={ticker}&token={api_key}'
@@ -188,23 +147,27 @@ def predict_stock(ticker, company_name):
     if df['MACD'].iloc[-1] > macd_threshold:
         score += 1
 
-    # Store final results
-    results = pd.DataFrame({
-        'Ticker': [ticker],
-        'Volatility': [df['Volatility'].iloc[-1]],
-        'Skewness': [skewness],
-        'Kurtosis': [kurt],
-        '1-Month Performance': [recent_performance_1_month],
-        '6-Month Performance': [recent_performance_6_month],
-        'Trend': [df['Close'].iloc[-1] / df['MA_50'].iloc[-1] - 1],
-        'Momentum': [momentum],
-        'RSI': [df['RSI'].iloc[-1]],
-        'MACD': [df['MACD'].iloc[-1]],
-        'Score': [score],
-        'Sentiment Score': [sentiment_score],
-        'Score': [calculate_recommendation_score(df, sentiment_score)]
-    })
-    print(results)
+
+    # Calculate the score based on each factor
+    score = 0
+    if df['Volatility'].iloc[-1] < volatility_threshold:
+        score += 1
+    if skewness > skewness_threshold:
+        score += 1
+    if kurt < kurtosis_threshold:
+        score += 1
+    if recent_performance_1_month > recent_performance_threshold_1_month:
+        score += 1
+    if recent_performance_6_month > recent_performance_threshold_6_month:
+        score += 1
+    if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
+        score += 1
+    if momentum > momentum_threshold:
+        score += 1
+    if df['RSI'].iloc[-1] > rsi_threshold:
+        score += 1
+    if df['MACD'].iloc[-1] > macd_threshold:
+        score += 1
 
     # Fetch news articles for the stock ticker and company name
     articles = fetch_news(ticker) + fetch_news(company_name)
@@ -223,6 +186,29 @@ def predict_stock(ticker, company_name):
 
         average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
         print(f"Average Sentiment Scores: {average_sentiment}")
+
+    # Adjust the score based on sentiment analysis
+    if average_sentiment >= 0.5:
+        score += 1
+    elif average_sentiment < 0:
+        score -= 1
+
+    # Store final results
+    results = pd.DataFrame({
+        'Ticker': [ticker],
+        'Volatility': [df['Volatility'].iloc[-1]],
+        'Skewness': [skewness],
+        'Kurtosis': [kurt],
+        '1-Month Performance': [recent_performance_1_month],
+        '6-Month Performance': [recent_performance_6_month],
+        'Trend': [df['Close'].iloc[-1] / df['MA_50'].iloc[-1] - 1],
+        'Momentum': [momentum],
+        'RSI': [df['RSI'].iloc[-1]],
+        'MACD': [df['MACD'].iloc[-1]],
+        'Score': [score],
+        'Sentiment Score': [average_sentiment]
+    })
+    print(results)
 
     # Drop the rows with missing values
     df = df.dropna()
