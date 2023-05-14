@@ -258,12 +258,12 @@ def predict_stock(ticker, company_name):
 
         # Add volatility for volatility analysis
         df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
-        df['Volatility'] = df['Log_Returns'].rolling(window=21).std()
-        
+        df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
+
         # Calculate RSI and MACD
         df['RSI'] = rsi(df['Close'])
         df['MACD'] = macd(df['Close'])
-        
+
         # Normalize the data
         scaler = MinMaxScaler()
         data_scaled = scaler.fit_transform(df)
@@ -323,7 +323,7 @@ def predict_stock(ticker, company_name):
             predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
             # Propagate the last features
             last_features = new_df[-1, 1:]
-            new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)  # shape: (1, 8)
+            new_prediction = np.concatenate([predicted_price, new_df[-1, 1:].reshape(1, -1)], axis=1)
             new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 8)
 
             forecast.append(predicted_price[0])
@@ -331,7 +331,7 @@ def predict_stock(ticker, company_name):
         # Reverse the scaling for the forecast
         forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-        print("The forecast for the next", PERIOD, " days is:", forecast)
+        print("The forecast for the next", PERIOD, "days is:", forecast)
 
         # Create a DataFrame for the last week of actual prices
         last_week = df['Close'].tail(PERIOD)
@@ -339,8 +339,7 @@ def predict_stock(ticker, company_name):
         # Get the day after the last day in last_week
         start_date = last_week.index[-1] + pd.DateOffset(days=1)
 
-        # Generate the dates for the
-        # forecast
+        # Generate the dates for the forecast
         forecast_dates = pd.date_range(start=start_date, periods=PERIOD)
 
         # Create a DataFrame for the forecast using these dates
@@ -360,7 +359,7 @@ def predict_stock(ticker, company_name):
         plt.plot(df.index[sequence_length + len(y_train) + 1:],
                  close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
         plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
-        plt.plot(forecast_week, color='orange', label='Forecasted Price')
+        plt.plot(forecast_week.index, forecast_week['Forecast'], color='orange', label='Forecasted Price')
         plt.title(f'{ticker} Stock Price Prediction')
         plt.xlabel('Date')
         plt.ylabel('Stock Price')
@@ -368,7 +367,9 @@ def predict_stock(ticker, company_name):
         plt.show()
 
     except Exception as e:
-        print(f"An error occurred while predicting stock for {ticker}: {str(e)}")
+        print("An error occurred during stock prediction:", str(e))
+
+
 
 # Perform initial analysis for each stock
 for ticker in tickers:
