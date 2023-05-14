@@ -15,6 +15,9 @@ import requests
 from ta.momentum import rsi
 from ta.trend import macd
 
+# List of stock tickers you are interested in
+tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
+
 SEQUENCE = 60
 PERIOD = 7
 
@@ -68,27 +71,8 @@ def get_recommendation(score):
         return "Sell (Bearish)"
     else:
         return "Hold"
-    
-def predict_stock(ticker, company_name):
-    # Fetch historical stock data
-    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
 
-    # Use only close prices
-    df = df[['Close']]
-
-    # Add moving averages for trend analysis
-    df['MA_10'] = df['Close'].rolling(window=10).mean()
-    df['MA_30'] = df['Close'].rolling(window=30).mean()
-    df['MA_50'] = df['Close'].rolling(window=50).mean()
-
-    # Add volatility for volatility analysis
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
-    df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
-
-    # Calculate RSI and MACD
-    df['RSI'] = rsi(df['Close'])
-    df['MACD'] = macd(df['Close'])
-
+def plot_stock_analysis(ticker, df):
     # Plot the data
     df[['Close', 'MA_10', 'MA_30', 'MA_50']].plot(figsize=(10, 4), grid=True)
     plt.title(f'{ticker} Stock Price with Moving Averages')
@@ -105,10 +89,6 @@ def predict_stock(ticker, company_name):
     df['MACD'].plot(figsize=(10, 4), grid=True)
     plt.title(f'{ticker} MACD')
     plt.show()
-
-    # Calculate skewness and kurtosis
-    skewness = skew(df['Log_Returns'].dropna())
-    kurt = kurtosis(df['Log_Returns'].dropna())
 
     # Monte Carlo Simulation
     log_returns = np.log(1 + df['Close'].pct_change())
@@ -131,6 +111,27 @@ def predict_stock(ticker, company_name):
     plt.plot(price_list)
     plt.title(f'{ticker} Monte Carlo Simulation')
     plt.show()
+
+def analyze_stock(ticker, company_name):
+    # Fetch historical stock data
+    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
+
+    # Add moving averages for trend analysis
+    df['MA_10'] = df['Close'].rolling(window=10).mean()
+    df['MA_30'] = df['Close'].rolling(window=30).mean()
+    df['MA_50'] = df['Close'].rolling(window=50).mean()
+
+    # Add volatility for volatility analysis
+    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
+    df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
+
+    # Calculate RSI and MACD
+    df['RSI'] = rsi(df['Close'])
+    df['MACD'] = macd(df['Close'])
+
+    # Calculate skewness and kurtosis
+    skewness = skew(df['Log_Returns'].dropna())
+    kurt = kurtosis(df['Log_Returns'].dropna())
 
     # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
     volatility_threshold = 0.30  # This is an example, you can adjust this value
@@ -176,33 +177,11 @@ def predict_stock(ticker, company_name):
     if df['MACD'].iloc[-1] > macd_threshold:
         score += 1
 
-
-    # Calculate the score based on each factor
-    score = 0
-    if df['Volatility'].iloc[-1] < volatility_threshold:
-        score += 1
-    if skewness > skewness_threshold:
-        score += 1
-    if kurt < kurtosis_threshold:
-        score += 1
-    if recent_performance_1_month > recent_performance_threshold_1_month:
-        score += 1
-    if recent_performance_6_month > recent_performance_threshold_6_month:
-        score += 1
-    if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
-        score += 1
-    if momentum > momentum_threshold:
-        score += 1
-    if df['RSI'].iloc[-1] > rsi_threshold:
-        score += 1
-    if df['MACD'].iloc[-1] > macd_threshold:
-        score += 1
-
     # Fetch news articles for the stock ticker and company name
     articles = fetch_news(ticker) + fetch_news(company_name)
 
     if len(articles) == 0:
-            print(f"No news articles found for ",ticker," or ",company_name)
+        print(f"No news articles found for {ticker} or {company_name}")
     else:
         sentiment_scores = []
         for article in articles:
@@ -243,8 +222,33 @@ def predict_stock(ticker, company_name):
     recommendation = get_recommendation(score)
     print("Recommendation:", recommendation)
 
-    # Drop the rows with missing values
-    df = df.dropna()
+    plot_yn = input("Do you want to plot? y/n: ")
+    if plot_yn == "y":
+        # Plot the stock analysis
+        plot_stock_analysis(ticker, df)
+
+    return score
+
+# Function to predict stock
+def predict_stock(ticker, company_name):
+    # Fetch historical stock data
+    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
+
+    # Use only close prices
+    df = df[['Close']]
+
+    # Add moving averages for trend analysis
+    df['MA_10'] = df['Close'].rolling(window=10).mean()
+    df['MA_30'] = df['Close'].rolling(window=30).mean()
+    df['MA_50'] = df['Close'].rolling(window=50).mean()
+
+    # Add volatility for volatility analysis
+    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
+    df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
+
+    # Calculate RSI and MACD
+    df['RSI'] = rsi(df['Close'])
+    df['MACD'] = macd(df['Close'])
 
     # Normalize the data
     scaler = MinMaxScaler()
@@ -296,13 +300,11 @@ def predict_stock(ticker, company_name):
     # Reverse the scaling for the predictions
     predictions = close_scaler.inverse_transform(predictions)
 
-    # Now let's use the model to predict the next 14 days
+    # Now let's use the model to predict the next period
     new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 8)
     forecast = []
 
-    df['Close'] = close_scaler.inverse_transform(df[['Close']])
-
-    for _ in range(PERIOD):  # Change this to 14
+    for _ in range(PERIOD):  
         new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
         predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
         # Propagate the last features
@@ -315,16 +317,16 @@ def predict_stock(ticker, company_name):
     # Reverse the scaling for the forecast
     forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-    print("The forecast for the next",PERIOD," days is:", forecast)
+    print("The forecast for the next", PERIOD, " days is:", forecast)
 
     # Create a DataFrame for the last week of actual prices
-    last_week = df['Close'].tail(PERIOD)  # Change this to 14
+    last_week = df['Close'].tail(PERIOD)
 
     # Get the day after the last day in last_week
     start_date = last_week.index[-1] + pd.DateOffset(days=1)
 
     # Generate the dates for the forecast
-    forecast_dates = pd.date_range(start=start_date, periods=PERIOD)  # Change this to 14
+    forecast_dates = pd.date_range(start=start_date, periods=PERIOD)
 
     # Create a DataFrame for the forecast using these dates
     forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
@@ -350,10 +352,15 @@ def predict_stock(ticker, company_name):
     plt.legend()
     plt.show()
 
-# List of stock tickers you are interested in
-tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
-
-# Predict each stock
+# Perform initial analysis for each stock
 for ticker in tickers:
+    company_name = tickers_to_company_names(ticker)
+    analyze_stock(ticker, company_name)
+    print()
+
+# Predict stocks for a specific list of tickers
+prediction_tickers = input("Enter the tickers you want to predict (separated by comma): ").split(',')
+
+for ticker in prediction_tickers:
     company_name = tickers_to_company_names(ticker)
     predict_stock(ticker, company_name)
