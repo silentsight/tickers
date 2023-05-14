@@ -54,7 +54,9 @@ def calculate_sentiment_score(text):
 def tickers_to_company_names(ticker):
     company_name = []
     stock = yf.Ticker(ticker)
-    company_name = stock.info.get('longName')
+    company_info = stock.info
+    if company_info is not None:
+        company_name = company_info.get('longName')
     if not company_name:
         print(f"Company name not found for ticker: {ticker}")
 
@@ -113,244 +115,260 @@ def plot_stock_analysis(ticker, df):
     plt.show()
 
 def analyze_stock(ticker, company_name):
-    # Fetch historical stock data
-    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
+    try:
+        # Fetch historical stock data
+        df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
 
-    # Add moving averages for trend analysis
-    df['MA_10'] = df['Close'].rolling(window=10).mean()
-    df['MA_30'] = df['Close'].rolling(window=30).mean()
-    df['MA_50'] = df['Close'].rolling(window=50).mean()
+        if df.empty:
+            print(f"No historical stock data found for {ticker}")
+            return
 
-    # Add volatility for volatility analysis
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
-    df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
+        # Add moving averages for trend analysis
+        df['MA_10'] = df['Close'].rolling(window=10).mean()
+        df['MA_30'] = df['Close'].rolling(window=30).mean()
+        df['MA_50'] = df['Close'].rolling(window=50).mean()
 
-    # Calculate RSI and MACD
-    df['RSI'] = rsi(df['Close'])
-    df['MACD'] = macd(df['Close'])
+        # Add volatility for volatility analysis
+        df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
+        df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
 
-    # Calculate skewness and kurtosis
-    skewness = skew(df['Log_Returns'].dropna())
-    kurt = kurtosis(df['Log_Returns'].dropna())
+        # Calculate RSI and MACD
+        df['RSI'] = rsi(df['Close'])
+        df['MACD'] = macd(df['Close'])
 
-    # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
-    volatility_threshold = 0.30  # This is an example, you can adjust this value
-    skewness_threshold = 0  # This is an example, you can adjust this value
-    kurtosis_threshold = 3  # This is an example, you can adjust this value
-    recent_performance_threshold_1_month = 0.05  # 5% up in the past month
-    recent_performance_threshold_6_month = 0.20  # 20% up in the past six months
-    trend_threshold = 1.05  # Latest closing price is at least 5% above MA_50
-    momentum_threshold = 0.05  # Rate of change is at least 5%
-    rsi_threshold = 50  # RSI threshold value
-    macd_threshold = 0  # MACD threshold value
+        # Calculate skewness and kurtosis
+        skewness = skew(df['Log_Returns'].dropna())
+        kurt = kurtosis(df['Log_Returns'].dropna())
 
-    score = 0
-    if df['Volatility'].iloc[-1] < volatility_threshold:
-        score += 1
-    if skewness > skewness_threshold:
-        score += 1
-    if kurt < kurtosis_threshold:
-        score += 1
+        # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
+        volatility_threshold = 0.30  # This is an example, you can adjust this value
+        skewness_threshold = 0  # This is an example, you can adjust this value
+        kurtosis_threshold = 3  # This is an example, you can adjust this value
+        recent_performance_threshold_1_month = 0.05  # 5% up in the past month
+        recent_performance_threshold_6_month = 0.20  # 20% up in the past six months
+        trend_threshold = 1.05  # Latest closing price is at least 5% above MA_50
+        momentum_threshold = 0.05  # Rate of change is at least 5%
+        rsi_threshold = 50  # RSI threshold value
+        macd_threshold = 0  # MACD threshold value
 
-    # Check recent performance (1 month and 6 months)
-    recent_performance_1_month = df['Close'].iloc[-1] / df['Close'].iloc[-22] - 1
-    recent_performance_6_month = df['Close'].iloc[-1] / df['Close'].iloc[-126] - 1
-    if recent_performance_1_month > recent_performance_threshold_1_month:
-        score += 1
-    if recent_performance_6_month > recent_performance_threshold_6_month:
-        score += 1
+        score = 0
+        if df['Volatility'].iloc[-1] < volatility_threshold:
+            score += 1
+        if skewness > skewness_threshold:
+            score += 1
+        if kurt < kurtosis_threshold:
+            score += 1
 
-    # Check trend (compare latest closing price to MA_50)
-    if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
-        score += 1
+        # Check recent performance (1 month and 6 months)
+        recent_performance_1_month = df['Close'].iloc[-1] / df['Close'].iloc[-22] - 1
+        recent_performance_6_month = df['Close'].iloc[-1] / df['Close'].iloc[-126] - 1
+        if recent_performance_1_month > recent_performance_threshold_1_month:
+            score += 1
+        if recent_performance_6_month > recent_performance_threshold_6_month:
+            score += 1
 
-    # Check momentum (rate of change)
-    momentum = df['Close'].iloc[-1] / df['Close'].iloc[-2] - 1
-    if momentum > momentum_threshold:
-        score += 1
+        # Check trend (compare latest closing price to MA_50)
+        if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
+            score += 1
 
-    # Check RSI
-    if df['RSI'].iloc[-1] > rsi_threshold:
-        score += 1
+        momentum = df['Close'].iloc[-1] / df['Close'].iloc[-2] - 1
+        if momentum > momentum_threshold:
+            score += 1
 
-    # Check MACD
-    if df['MACD'].iloc[-1] > macd_threshold:
-        score += 1
+        # Check RSI
+        if df['RSI'].iloc[-1] > rsi_threshold:
+            score += 1
 
-    # Fetch news articles for the stock ticker and company name
-    articles = fetch_news(ticker) + fetch_news(company_name)
+        # Check MACD
+        if df['MACD'].iloc[-1] > macd_threshold:
+            score += 1
 
-    if len(articles) == 0:
-        print(f"No news articles found for {ticker} or {company_name}")
-    else:
-        sentiment_scores = []
-        for article in articles:
-            title = article['title']
-            description = article['description']
-            content = article['content']
-            text = f'{title} {description} {content}'
-            sentiment_score = calculate_sentiment_score(text)
-            sentiment_scores.append(sentiment_score)
+        # Fetch news articles for the stock ticker and company name
+        articles = fetch_news(ticker) + fetch_news(company_name)
 
-        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
-        print(f"Average Sentiment Scores: {average_sentiment}")
+        if len(articles) == 0:
+            print(f"No news articles found for {ticker} or {company_name}")
+        else:
+            sentiment_scores = []
+            for article in articles:
+                title = article['title']
+                description = article['description']
+                content = article['content']
+                text = f'{title} {description} {content}'
+                sentiment_score = calculate_sentiment_score(text)
+                sentiment_scores.append(sentiment_score)
 
-    # Adjust the score based on sentiment analysis
-    if average_sentiment >= 0.5:
-        score += 1
-    elif average_sentiment < 0:
-        score -= 1
+            average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+            print(f"Average Sentiment Scores: {average_sentiment}")
 
-    # Store final results
-    results = pd.DataFrame({
-        'Ticker': [ticker],
-        'Volatility': [df['Volatility'].iloc[-1]],
-        'Skewness': [skewness],
-        'Kurtosis': [kurt],
-        '1-Month Performance': [recent_performance_1_month],
-        '6-Month Performance': [recent_performance_6_month],
-        'Trend': [df['Close'].iloc[-1] / df['MA_50'].iloc[-1] - 1],
-        'Momentum': [momentum],
-        'RSI': [df['RSI'].iloc[-1]],
-        'MACD': [df['MACD'].iloc[-1]],
-        'Score': [score],
-        'Sentiment Score': [average_sentiment]
-    })
-    print(results)
+        # Adjust the score based on sentiment analysis
+        if average_sentiment >= 0.5:
+            score += 1
+        elif average_sentiment < 0:
+            score -= 1
 
-    # Get recommendation based on score
-    recommendation = get_recommendation(score)
-    print("Recommendation:", recommendation)
+        # Store final results
+        results = pd.DataFrame({
+            'Ticker': [ticker],
+            'Volatility': [df['Volatility'].iloc[-1]],
+            'Skewness': [skewness],
+            'Kurtosis': [kurt],
+            '1-Month Performance': [recent_performance_1_month],
+            '6-Month Performance': [recent_performance_6_month],
+            'Trend': [df['Close'].iloc[-1] / df['MA_50'].iloc[-1] - 1],
+            'Momentum': [momentum],
+            'RSI': [df['RSI'].iloc[-1]],
+            'MACD': [df['MACD'].iloc[-1]],
+            'Score': [score],
+            'Sentiment Score': [average_sentiment]
+        })
+        print(results)
 
-    plot_yn = input("Do you want to plot? y/n: ")
-    if plot_yn == "y":
-        # Plot the stock analysis
-        plot_stock_analysis(ticker, df)
+        # Get recommendation based on score
+        recommendation = get_recommendation(score)
+        print("Recommendation:", recommendation)
 
-    return score
+        plot_yn = input("Do you want to plot? y/n: ")
+        if plot_yn == "y":
+            # Plot the stock analysis
+            plot_stock_analysis(ticker, df)
+
+        return score
+
+    except Exception as e:
+        print(f"An error occurred while analyzing {ticker}: {str(e)}")
 
 # Function to predict stock
 def predict_stock(ticker, company_name):
-    # Fetch historical stock data
-    df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
+    try:
+        # Fetch historical stock data
+        df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
 
-    # Use only close prices
-    df = df[['Close']]
+        if df.empty:
+            print(f"No historical stock data found for {ticker}")
+            return
 
-    # Add moving averages for trend analysis
-    df['MA_10'] = df['Close'].rolling(window=10).mean()
-    df['MA_30'] = df['Close'].rolling(window=30).mean()
-    df['MA_50'] = df['Close'].rolling(window=50).mean()
+        # Use only close prices
+        df = df[['Close']]
 
-    # Add volatility for volatility analysis
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
-    df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
+        # Add moving averages for trend analysis
+        df['MA_10'] = df['Close'].rolling(window=10).mean()
+        df['MA_30'] = df['Close'].rolling(window=30).mean()
+        df['MA_50'] = df['Close'].rolling(window=50).mean()
 
-    # Calculate RSI and MACD
-    df['RSI'] = rsi(df['Close'])
-    df['MACD'] = macd(df['Close'])
+        # Add volatility for volatility analysis
+        df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
+        df['Volatility'] = df['Log_Returns'].rolling(window=21).std()
+        
+        # Calculate RSI and MACD
+        df['RSI'] = rsi(df['Close'])
+        df['MACD'] = macd(df['Close'])
+        
+        # Normalize the data
+        scaler = MinMaxScaler()
+        data_scaled = scaler.fit_transform(df)
 
-    # Normalize the data
-    scaler = MinMaxScaler()
-    data_scaled = scaler.fit_transform(df)
+        # Add another scaler for 'Close' prices only
+        close_scaler = MinMaxScaler()
+        df[['Close']] = close_scaler.fit_transform(df[['Close']])
 
-    # Add another scaler for 'Close' prices only
-    close_scaler = MinMaxScaler()
-    df[['Close']] = close_scaler.fit_transform(df[['Close']])
+        # Function to create sequences
+        def create_sequences(data, sequence_length):
+            x = []
+            y = []
+            for i in range(len(data) - sequence_length - 1):
+                x.append(data[i:(i + sequence_length), :])
+                y.append(data[i + sequence_length, 0])  # Predict the next 'Close' price
+            return np.array(x), np.array(y).reshape(-1, 1)
 
-    # Function to create sequences
-    def create_sequences(data, sequence_length):
-        x = []
-        y = []
-        for i in range(len(data) - sequence_length - 1):
-            x.append(data[i:(i + sequence_length), :])
-            y.append(data[i + sequence_length, 0])  # Predict the next 'Close' price
-        return np.array(x), np.array(y).reshape(-1, 1)
+        # Create sequences
+        sequence_length = SEQUENCE_LENGTH  # Adjust sequence length
+        x, y = create_sequences(data_scaled, sequence_length)
 
-    # Create sequences
-    sequence_length = SEQUENCE_LENGTH  # Adjust sequence length
-    x, y = create_sequences(data_scaled, sequence_length)
+        # Split the data into training and testing data
+        train_length = int(len(df) * 0.7)
+        x_train, x_test = x[:train_length], x[train_length:]
+        y_train, y_test = y[:train_length], y[train_length:]
 
-    # Split the data into training and testing data
-    train_length = int(len(df) * 0.7)
-    x_train, x_test = x[:train_length], x[train_length:]
-    y_train, y_test = y[:train_length], y[train_length:]
+        # Build the CNN-GRU model
+        model = Sequential()
+        for i in range(NUM_CONV_LAYERS):
+            model.add(Conv1D(filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, activation='relu',
+                             input_shape=(sequence_length, 8)))
+            model.add(MaxPooling1D(pool_size=POOL_SIZE))
+        model.add(GRU(LSTM_UNITS, activation='relu', return_sequences=True))
+        model.add(Dropout(DROPOUT_RATE))
+        model.add(GRU(LSTM_UNITS, activation='relu'))
+        model.add(Dropout(DROPOUT_RATE))
+        model.add(Dense(1))
 
-    # Build the CNN-GRU model
-    model = Sequential()
-    for i in range(NUM_CONV_LAYERS):
-        model.add(Conv1D(filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, activation='relu',
-                         input_shape=(sequence_length, 8)))
-        model.add(MaxPooling1D(pool_size=POOL_SIZE))
-    model.add(GRU(LSTM_UNITS, activation='relu', return_sequences=True))
-    model.add(Dropout(DROPOUT_RATE))
-    model.add(GRU(LSTM_UNITS, activation='relu'))
-    model.add(Dropout(DROPOUT_RATE))
-    model.add(Dense(1))
+        # Compile the model
+        model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss='mse')
 
-    # Compile the model
-    model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss='mse')
+        # Train the model
+        model.fit(x_train, y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE)
 
-    # Train the model
-    model.fit(x_train, y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE)
+        # Test the model using the test data
+        predictions = model.predict(x_test)
 
-    # Test the model using the test data
-    predictions = model.predict(x_test)
+        # Reverse the scaling for the predictions
+        predictions = close_scaler.inverse_transform(predictions)
 
-    # Reverse the scaling for the predictions
-    predictions = close_scaler.inverse_transform(predictions)
+        # Now let's use the model to predict the next period
+        new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 8)
+        forecast = []
 
-    # Now let's use the model to predict the next period
-    new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 8)
-    forecast = []
+        for _ in range(PERIOD):
+            new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
+            predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
+            # Propagate the last features
+            last_features = new_df[-1, 1:]
+            new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)  # shape: (1, 8)
+            new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 8)
 
-    for _ in range(PERIOD):  
-        new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
-        predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
-        # Propagate the last features
-        last_features = new_df[-1, 1:]
-        new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)  # shape: (1, 8)
-        new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 8)
+            forecast.append(predicted_price[0])
 
-        forecast.append(predicted_price[0])
+        # Reverse the scaling for the forecast
+        forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
 
-    # Reverse the scaling for the forecast
-    forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
+        print("The forecast for the next", PERIOD, " days is:", forecast)
 
-    print("The forecast for the next", PERIOD, " days is:", forecast)
+        # Create a DataFrame for the last week of actual prices
+        last_week = df['Close'].tail(PERIOD)
 
-    # Create a DataFrame for the last week of actual prices
-    last_week = df['Close'].tail(PERIOD)
+        # Get the day after the last day in last_week
+        start_date = last_week.index[-1] + pd.DateOffset(days=1)
 
-    # Get the day after the last day in last_week
-    start_date = last_week.index[-1] + pd.DateOffset(days=1)
+        # Generate the dates for the
+        # forecast
+        forecast_dates = pd.date_range(start=start_date, periods=PERIOD)
 
-    # Generate the dates for the forecast
-    forecast_dates = pd.date_range(start=start_date, periods=PERIOD)
+        # Create a DataFrame for the forecast using these dates
+        forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
 
-    # Create a DataFrame for the forecast using these dates
-    forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
+        # Concatenate the actual and forecasted prices
+        result = pd.concat([last_week, forecast_week], axis=1)
 
-    # Concatenate the actual and forecasted prices
-    result = pd.concat([last_week, forecast_week], axis=1)
+        # Calculate the percentage of change
+        result['Percentage Change'] = result['Forecast'].pct_change() * 100
+        print(result)
 
-    # Calculate the percentage of change
-    result['Percentage Change'] = result['Forecast'].pct_change() * 100
-    print(result)
+        # Plot the actual, training, testing, and forecasted prices
+        plt.figure(figsize=(12, 8))
+        plt.plot(df.index[sequence_length:sequence_length + len(y_train)],
+                 close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
+        plt.plot(df.index[sequence_length + len(y_train) + 1:],
+                 close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
+        plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
+        plt.plot(forecast_week, color='orange', label='Forecasted Price')
+        plt.title(f'{ticker} Stock Price Prediction')
+        plt.xlabel('Date')
+        plt.ylabel('Stock Price')
+        plt.legend()
+        plt.show()
 
-    # Plot the actual, training, testing, and forecasted prices
-    plt.figure(figsize=(12, 8))
-    plt.plot(df.index[sequence_length:sequence_length + len(y_train)],
-             close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
-    plt.plot(df.index[sequence_length + len(y_train) + 1:],
-             close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
-    plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
-    plt.plot(forecast_week, color='orange', label='Forecasted Price')
-    plt.title(f'{ticker} Stock Price Prediction')
-    plt.xlabel('Date')
-    plt.ylabel('Stock Price')
-    plt.legend()
-    plt.show()
+    except Exception as e:
+        print(f"An error occurred while predicting stock for {ticker}: {str(e)}")
 
 # Perform initial analysis for each stock
 for ticker in tickers:
