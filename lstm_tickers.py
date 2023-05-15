@@ -16,6 +16,8 @@ from ta.momentum import rsi
 from ta.trend import macd
 from bs4 import BeautifulSoup
 import requests
+import datetime
+
 
 # List of stock tickers you are interested in
 #tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
@@ -259,6 +261,9 @@ def analyze_stock(ticker, company_name):
         # Check MACD
         if df['MACD'].iloc[-1] > macd_threshold:
             score += 1
+        
+        # Calculate latest adjusted price
+        latest_adjusted_price = df['Close'].iloc[-1]
 
         average_sentiment = alt_get_average_sentiment(ticker, company_name) #get_average_sentiment(ticker, company_name)
 
@@ -275,6 +280,7 @@ def analyze_stock(ticker, company_name):
         # Store final results
         results = pd.DataFrame({
             'Ticker': [ticker],
+            'Latest Adjusted Price': [latest_adjusted_price],
             'Volatility': [df['Volatility'].iloc[-1]],
             'Skewness': [skewness],
             'Kurtosis': [kurt],
@@ -290,14 +296,10 @@ def analyze_stock(ticker, company_name):
         })
         return results
 
-        
-
         plot_yn = 0
         if plot_yn == "y":
             # Plot the stock analysis
             plot_stock_analysis(ticker, df)
-
-        
 
     except Exception as e:
         print(f"An error occurred while analyzing {ticker}: {str(e)}")
@@ -321,3 +323,9 @@ final_results = pd.concat(all_results)
 # Sort the DataFrame based on the score and display the result
 final_results = final_results.sort_values(by='Score', ascending=False)
 print(final_results)
+
+current_datetime = datetime.datetime.now()
+
+filename = current_datetime.strftime("%Y%m%d_%H") + "_stock_analysis_results.csv"
+# Export the DataFrame to a CSV file
+final_results.to_csv(filename, index=False)
