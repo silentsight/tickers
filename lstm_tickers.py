@@ -199,7 +199,7 @@ def analyze_stock(ticker, company_name):
                 sentiment_scores.append(sentiment_score)
 
             average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
-            print(f"Average Sentiment Scores: {average_sentiment}")
+            #print(f"Average Sentiment Scores: {average_sentiment}")
 
         # Adjust the score based on sentiment analysis
         if average_sentiment >= 0.5:
@@ -222,25 +222,38 @@ def analyze_stock(ticker, company_name):
             'Score': [score],
             'Sentiment Score': [average_sentiment]
         })
-        print(results)
+        return results
 
         # Get recommendation based on score
         recommendation = get_recommendation(score)
-        print("Recommendation:", recommendation)
+        #print("Recommendation:", recommendation)
 
         plot_yn = 0
         if plot_yn == "y":
             # Plot the stock analysis
             plot_stock_analysis(ticker, df)
 
-        return score
+        
 
     except Exception as e:
         print(f"An error occurred while analyzing {ticker}: {str(e)}")
 
-# Perform initial analysis for each stock
-for ticker in tickers:
-    company_name = tickers_to_company_names(ticker)
-    analyze_stock(ticker, company_name)
-    print()
+    #return score
 
+# Perform initial analysis for each stock
+all_results = []  # List to store the results DataFrames
+
+for ticker in tickers:
+    try:
+        company_name = tickers_to_company_names(ticker)
+        results_df = analyze_stock(ticker, company_name)
+        all_results.append(results_df)  # Append the result DataFrame to the list
+    except Exception as e:
+        print(f"An error occurred while analyzing {ticker}: {str(e)}")
+
+# Concatenate all results DataFrames
+final_results = pd.concat(all_results)
+
+# Sort the DataFrame based on the score and display the result
+final_results = final_results.sort_values(by='Score', ascending=False)
+print(final_results)
