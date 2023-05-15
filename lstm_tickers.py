@@ -207,6 +207,10 @@ def analyze_stock(ticker, company_name):
         elif average_sentiment < 0:
             score -= 1
 
+        # Get recommendation based on score
+        recommendation = get_recommendation(score)
+        #print("Recommendation:", recommendation)
+
         # Store final results
         results = pd.DataFrame({
             'Ticker': [ticker],
@@ -220,13 +224,12 @@ def analyze_stock(ticker, company_name):
             'RSI': [df['RSI'].iloc[-1]],
             'MACD': [df['MACD'].iloc[-1]],
             'Score': [score],
-            'Sentiment Score': [average_sentiment]
+            'Sentiment Score': [average_sentiment],
+            'Recommendation': [recommendation]  # Add this line
         })
         return results
 
-        # Get recommendation based on score
-        recommendation = get_recommendation(score)
-        #print("Recommendation:", recommendation)
+        
 
         plot_yn = 0
         if plot_yn == "y":
