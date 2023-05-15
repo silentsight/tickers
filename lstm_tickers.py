@@ -14,12 +14,14 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 import requests
 from ta.momentum import rsi
 from ta.trend import macd
+from bs4 import BeautifulSoup
+import requests
 
 # List of stock tickers you are interested in
 #tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
 
 # Read the CSV file
-tickers_df = pd.read_csv('tickers.csv', header=None)
+tickers_df = pd.read_csv('tickers051523.csv', header=None)
 
 # Convert the DataFrame to a list
 tickers = tickers_df[0].tolist()
@@ -42,7 +44,7 @@ NUM_POOLING_LAYERS = 1  # Increase to downsample feature maps
 POOL_SIZE = 2  # Adjust to control the amount of downsampling
 HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
 START_DATE = "2023-01-01"
-END_DATE = "2023-05-12"
+END_DATE = "2023-05-15"
 
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
@@ -56,6 +58,75 @@ def calculate_sentiment_score(text):
     sid = SentimentIntensityAnalyzer()
     sentiment_score = sid.polarity_scores(text)
     return sentiment_score['compound']
+
+def scrape_news(ticker):
+    urls = [
+        f"https://finance.yahoo.com/quote/{ticker}",
+        f"https://money.cnn.com/quote/quote.html?symb={ticker}",
+        # Add more URLs as needed
+    ]
+
+    for url in urls:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Find all elements on the page
+        elements = soup.find_all()
+
+        titles = [element.text for element in elements]
+        descriptions = titles  # Use the same list of titles as descriptions
+
+        if titles:  # If titles were found
+            return titles, descriptions
+
+    # If no titles were found at any of the URLs
+    raise ValueError(f"No news articles found for {ticker}")
+
+def alt_get_average_sentiment(ticker, company_name):
+    # Scrape news articles for the stock ticker and company name
+    titles_ticker, descriptions_ticker = scrape_news(ticker)
+    titles_company, descriptions_company = scrape_news(company_name)
+
+    if len(titles_ticker) == 0: #and len(titles_company) == 0:
+        print(f"No news articles found for {ticker} or {company_name}")
+        return None
+    else:
+        sentiment_scores = []
+        for title, description in zip(titles_ticker, descriptions_ticker):
+            text = f'{title} {description}'
+            sentiment_score = calculate_sentiment_score(text)
+            sentiment_scores.append(sentiment_score)
+        
+        for title, description in zip(titles_company, descriptions_company):
+            text = f'{title} {description}'
+            sentiment_score = calculate_sentiment_score(text)
+            sentiment_scores.append(sentiment_score)
+        
+        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+        print(f"Average Sentiment Scores: {average_sentiment}")
+        return average_sentiment
+
+
+def get_average_sentiment(ticker, company_name):
+    # Fetch news articles for the stock ticker and company name
+    articles = fetch_news(ticker) + fetch_news(company_name)
+
+    if len(articles) == 0:
+        print(f"No news articles found for {ticker} or {company_name}")
+        return None
+    else:
+        sentiment_scores = []
+        for article in articles:
+            title = article['title']
+            description = article['description']
+            content = article['content']
+            text = f'{title} {description} {content}'
+            sentiment_score = calculate_sentiment_score(text)
+            sentiment_scores.append(sentiment_score)
+
+        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+        print(f"Average Sentiment Scores: {average_sentiment}")
+        return average_sentiment
 
 def tickers_to_company_names(ticker):
     company_name = []
@@ -189,23 +260,7 @@ def analyze_stock(ticker, company_name):
         if df['MACD'].iloc[-1] > macd_threshold:
             score += 1
 
-        # Fetch news articles for the stock ticker and company name
-        articles = fetch_news(ticker) + fetch_news(company_name)
-
-        if len(articles) == 0:
-            print(f"No news articles found for {ticker} or {company_name}")
-        else:
-            sentiment_scores = []
-            for article in articles:
-                title = article['title']
-                description = article['description']
-                content = article['content']
-                text = f'{title} {description} {content}'
-                sentiment_score = calculate_sentiment_score(text)
-                sentiment_scores.append(sentiment_score)
-
-            average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
-            #print(f"Average Sentiment Scores: {average_sentiment}")
+        average_sentiment = alt_get_average_sentiment(ticker, company_name) #get_average_sentiment(ticker, company_name)
 
         # Adjust the score based on sentiment analysis
         if average_sentiment >= 0.5:
