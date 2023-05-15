@@ -228,7 +228,7 @@ def analyze_stock(ticker, company_name):
         recommendation = get_recommendation(score)
         print("Recommendation:", recommendation)
 
-        plot_yn = input("Do you want to plot? y/n: ")
+        plot_yn = 0
         if plot_yn == "y":
             # Plot the stock analysis
             plot_stock_analysis(ticker, df)
@@ -238,148 +238,9 @@ def analyze_stock(ticker, company_name):
     except Exception as e:
         print(f"An error occurred while analyzing {ticker}: {str(e)}")
 
-# Function to predict stock
-def predict_stock(ticker, company_name):
-    try:
-        # Fetch historical stock data
-        df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
-
-        if df.empty:
-            print(f"No historical stock data found for {ticker}")
-            return
-
-        # Use only close prices
-        df = df[['Close']]
-
-        # Add moving averages for trend analysis
-        df['MA_10'] = df['Close'].rolling(window=10).mean()
-        df['MA_30'] = df['Close'].rolling(window=30).mean()
-        df['MA_50'] = df['Close'].rolling(window=50).mean()
-
-        # Add volatility for volatility analysis
-        df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift())
-        df['Volatility'] = df['Log_Returns'].rolling(window=21).std() * np.sqrt(252)  # annualized volatility
-
-        # Calculate RSI and MACD
-        df['RSI'] = rsi(df['Close'])
-        df['MACD'] = macd(df['Close'])
-
-        # Normalize the data
-        scaler = MinMaxScaler()
-        data_scaled = scaler.fit_transform(df)
-
-        # Add another scaler for 'Close' prices only
-        close_scaler = MinMaxScaler()
-        df[['Close']] = close_scaler.fit_transform(df[['Close']])
-
-        # Function to create sequences
-        def create_sequences(data, sequence_length):
-            x = []
-            y = []
-            for i in range(len(data) - sequence_length - 1):
-                x.append(data[i:(i + sequence_length), :])
-                y.append(data[i + sequence_length, 0])  # Predict the next 'Close' price
-            return np.array(x), np.array(y).reshape(-1, 1)
-
-        # Create sequences
-        sequence_length = SEQUENCE_LENGTH  # Adjust sequence length
-        x, y = create_sequences(data_scaled, sequence_length)
-
-        # Split the data into training and testing data
-        train_length = int(len(df) * 0.7)
-        x_train, x_test = x[:train_length], x[train_length:]
-        y_train, y_test = y[:train_length], y[train_length:]
-
-        # Build the CNN-GRU model
-        model = Sequential()
-        for i in range(NUM_CONV_LAYERS):
-            model.add(Conv1D(filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, activation='relu',
-                             input_shape=(sequence_length, 8)))
-            model.add(MaxPooling1D(pool_size=POOL_SIZE))
-        model.add(GRU(LSTM_UNITS, activation='relu', return_sequences=True))
-        model.add(Dropout(DROPOUT_RATE))
-        model.add(GRU(LSTM_UNITS, activation='relu'))
-        model.add(Dropout(DROPOUT_RATE))
-        model.add(Dense(1))
-
-        # Compile the model
-        model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss='mse')
-
-        # Train the model
-        model.fit(x_train, y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE)
-
-        # Test the model using the test data
-        predictions = model.predict(x_test)
-
-        # Reverse the scaling for the predictions
-        predictions = close_scaler.inverse_transform(predictions)
-
-        # Now let's use the model to predict the next period
-        new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 8)
-        forecast = []
-
-        for _ in range(PERIOD):
-            new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
-            predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
-            # Propagate the last features
-            last_features = new_df[-1, 1:]
-            new_prediction = np.concatenate([predicted_price, new_df[-1, 1:].reshape(1, -1)], axis=1)
-            new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 8)
-
-            forecast.append(predicted_price[0])
-
-        # Reverse the scaling for the forecast
-        forecast = close_scaler.inverse_transform(np.array(forecast).reshape(-1, 1))
-
-        print("The forecast for the next", PERIOD, "days is:", forecast)
-
-        # Create a DataFrame for the last week of actual prices
-        last_week = df['Close'].tail(PERIOD)
-
-        # Get the day after the last day in last_week
-        start_date = last_week.index[-1] + pd.DateOffset(days=1)
-
-        # Generate the dates for the forecast
-        forecast_dates = pd.date_range(start=start_date, periods=PERIOD)
-
-        # Create a DataFrame for the forecast using these dates
-        forecast_week = pd.DataFrame(forecast, index=forecast_dates, columns=['Forecast'])
-
-        # Concatenate the actual and forecasted prices
-        result = pd.concat([last_week, forecast_week], axis=1)
-
-        # Calculate the percentage of change
-        result['Percentage Change'] = result['Forecast'].pct_change() * 100
-        print(result)
-
-        # Plot the actual, training, testing, and forecasted prices
-        plt.figure(figsize=(12, 8))
-        plt.plot(df.index[sequence_length:sequence_length + len(y_train)],
-                 close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
-        plt.plot(df.index[sequence_length + len(y_train) + 1:],
-                 close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
-        plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
-        plt.plot(forecast_week.index, forecast_week['Forecast'], color='orange', label='Forecasted Price')
-        plt.title(f'{ticker} Stock Price Prediction')
-        plt.xlabel('Date')
-        plt.ylabel('Stock Price')
-        plt.legend()
-        plt.show()
-
-    except Exception as e:
-        print("An error occurred during stock prediction:", str(e))
-
-
-
 # Perform initial analysis for each stock
 for ticker in tickers:
     company_name = tickers_to_company_names(ticker)
     analyze_stock(ticker, company_name)
     print()
 
-# Predict stocks for a specific list of tickers
-prediction_tickers = input("Enter the tickers you want to predict (separated by comma): ").split(',')
-
-for ticker in prediction_tickers:
-    company_name = tickers_to_company_names(ticker)
-    predict_stock(ticker, company_name)
