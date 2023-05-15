@@ -16,7 +16,13 @@ from ta.momentum import rsi
 from ta.trend import macd
 
 # List of stock tickers you are interested in
-tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
+#tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
+
+# Read the CSV file
+tickers_df = pd.read_csv('tickers.csv', header=None)
+
+# Convert the DataFrame to a list
+tickers = tickers_df[0].tolist()
 
 SEQUENCE = 60
 PERIOD = 7
