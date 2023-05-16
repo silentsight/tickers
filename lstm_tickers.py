@@ -31,7 +31,7 @@ START_DATE = "2023-01-01"
 END_DATE = "2023-05-15"
 
 # List of stock tickers you are interested in
-tickers = ['ARRY']
+tickers = ['ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
 
 def get_stock_data(ticker):
     df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
@@ -131,8 +131,10 @@ def predict_stock(ticker):
         predictions = model.predict(x_test)
         predictions = close_scaler.inverse_transform(predictions)
         forecast = predict_future(df_scaled, model, close_scaler, SEQUENCE_LENGTH, df)
-        print("The forecast for the next", PERIOD, "days is:", forecast)
-        plot_data(df, y_train, y_test, predictions, forecast, close_scaler, SEQUENCE_LENGTH)
+        print("For ", ticker, ". The forecast for the next", PERIOD, " hours is:", forecast)
+        plot_yn = input("Want to plot? y/n.")
+        if plot_yn == "y":
+            plot_data(df, y_train, y_test, predictions, forecast, close_scaler, SEQUENCE_LENGTH)
     except Exception as e:
         print("An error occurred during stock prediction:", str(e))
 
