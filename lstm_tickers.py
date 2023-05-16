@@ -8,6 +8,10 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 from ta.momentum import rsi
 from ta.trend import macd
+from pandas.tseries.offsets import CustomBusinessHour
+
+# Create a custom business hour object
+cbh = CustomBusinessHour(start='09:30', end='16:00')
 
 # Hyperparameters
 SEQUENCE_LENGTH = 60
@@ -97,7 +101,8 @@ def predict_future(df_scaled, model, close_scaler, sequence_length, df):
 
     # Create a date range for the forecasted data
     last_date = df.index[-1]
-    forecast_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=PERIOD, freq='B')
+    cbh = CustomBusinessHour(start='09:30', end='16:00')
+    forecast_index = [last_date + cbh * i for i in range(1, PERIOD + 1)]
     forecast_df = pd.DataFrame(forecast, index=forecast_index, columns=['Forecast'])
     return forecast_df
 
