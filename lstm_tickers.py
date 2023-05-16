@@ -18,23 +18,26 @@ from ta.volume import OnBalanceVolumeIndicator
 from bs4 import BeautifulSoup
 import requests
 import datetime
-
+from dotenv import load_dotenv
+load_dotenv()
+import os
+MY_GNAPI_KEY = os.environ.get("MY_GNAPI_KEY")
 
 # List of stock tickers you are interested in
-tickers = ['AMZN', 'AMD', 'ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
+#tickers = ['AMZN', 'AMD', 'ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
 
 # Read the CSV file
-#tickers_df = pd.read_csv('20230516_11_top_gainers.csv', header=None)
+tickers_df = pd.read_csv('20230516_12_MYSTOCKs.csv', header=None)
 
 # Convert the DataFrame to a list
-#tickers = tickers_df[0].tolist()
+tickers = tickers_df[0].tolist()
 
 HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
 START_DATE = "2023-04-01"
 END_DATE = "2023-05-16"
 
 def fetch_news(ticker):
-    api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
+    api_key = MY_GNAPI_KEY  # Replace with your actual API key
     url = f'https://gnews.io/api/v4/search?q={ticker}&token={api_key}'
     response = requests.get(url)
     articles = response.json().get('articles', [])
@@ -98,23 +101,29 @@ def alt_get_average_sentiment(ticker, company_name):
 def get_average_sentiment(ticker, company_name):
     # Fetch news articles for the stock ticker and company name
     articles = fetch_news(ticker) + fetch_news(company_name)
+    try:
+        if len(articles) == 0:
+            print(f"No news articles found for {ticker} or {company_name}. Changing to alternate.")
+            average_sentiment = alt_get_average_sentiment(ticker, company_name)
+            return average_sentiment
+        else:
+            sentiment_scores = []
+            for article in articles:
+                title = article['title']
+                description = article['description']
+                content = article['content']
+                text = f'{title} {description} {content}'
+                sentiment_score = calculate_sentiment_score(text)
+                sentiment_scores.append(sentiment_score)
 
-    if len(articles) == 0:
-        print(f"No news articles found for {ticker} or {company_name}")
-        return None
-    else:
-        sentiment_scores = []
-        for article in articles:
-            title = article['title']
-            description = article['description']
-            content = article['content']
-            text = f'{title} {description} {content}'
-            sentiment_score = calculate_sentiment_score(text)
-            sentiment_scores.append(sentiment_score)
+            average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+            print(f"Average Sentiment Scores: {average_sentiment}")
+            return average_sentiment
+    except Exception as e:
+            print(f"Error occurred while getting finantial ratios from Gnews for {ticker}: {str(e)}: Trying alternative.")
+            average_sentiment = alt_get_average_sentiment(ticker, company_name)
+            return average_sentiment
 
-        average_sentiment = sum(sentiment_scores) / len(sentiment_scores)
-        print(f"Average Sentiment Scores: {average_sentiment}")
-        return average_sentiment
 
 def tickers_to_company_names(ticker):
     company_name = []
@@ -209,8 +218,8 @@ def analyze_stock(ticker, company_name):
             'debt_equity': 10,  # Financial ratios are important indicators of a company's financial health
             'dividend_rate': 8,  # A high dividend rate can be good for risk-averse investors
             'short_interest': 5,  # High short interest can indicate higher risk
-            'obv_rate_of_change': 5,  # Volume changes can be indicative, but are often less important than other factors
-            'sentiment_score': 8,  # Sentiment can be a strong indicator, especially in the short term
+            'obv_rate_of_change': 7,  # Volume changes can be indicative, but are often less important than other factors
+            'sentiment_score': 10,  # Sentiment can be a strong indicator, especially in the short term
         }
         # Add moving averages for trend analysis
         df['MA_10'] = df['Close'].rolling(window=10).mean()
@@ -284,7 +293,7 @@ def analyze_stock(ticker, company_name):
         # Calculate latest adjusted price
         latest_adjusted_price = df['Close'].iloc[-1]
 
-        average_sentiment = alt_get_average_sentiment(ticker, company_name) #get_average_sentiment(ticker, company_name)
+        average_sentiment = get_average_sentiment(ticker, company_name) #get_average_sentiment(ticker, company_name)
 
         # Calculate score for each factor
         if df['Volatility'].iloc[-1] < volatility_threshold:
