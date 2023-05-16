@@ -187,7 +187,6 @@ def plot_stock_analysis(ticker, df):
     plt.title(f'{ticker} Monte Carlo Simulation')
     plt.show()
 
-def analyze_stock(ticker, company_name):
     try:
         # Fetch historical stock data
         df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
@@ -337,6 +336,10 @@ def predict_stock(ticker, company_name):
         # Add another scaler for 'Close' prices only
         close_scaler = MinMaxScaler()
         df[['Close']] = close_scaler.fit_transform(df[['Close']])
+        #df['Close'] = close_scaler.inverse_transform(df[['Close']])
+
+        # Drop the rows with missing values
+        #df = df.dropna()
 
         # Function to create sequences
         def create_sequences(data, sequence_length):
@@ -384,13 +387,13 @@ def predict_stock(ticker, company_name):
         new_df = data_scaled[-sequence_length:].copy()  # shape: (sequence_length, 8)
         forecast = []
 
-        for _ in range(PERIOD):
+        for _ in range(PERIOD):  # Change this to 7
             new_df_scaled = np.reshape(new_df, (1, new_df.shape[0], new_df.shape[1]))
             predicted_price = model.predict(new_df_scaled)  # shape: (1, 1)
             # Propagate the last features
             last_features = new_df[-1, 1:]
-            new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)
-            new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 8)
+            new_prediction = np.concatenate([predicted_price, last_features.reshape(1, -1)], axis=1)  # shape: (1, 6)
+            new_df = np.concatenate([new_df[1:], new_prediction])  # shape: (sequence_length, 6)
 
             forecast.append(predicted_price[0])
 
@@ -418,14 +421,14 @@ def predict_stock(ticker, company_name):
         result['Percentage Change'] = result['Forecast'].pct_change() * 100
         print(result)
 
-        # Plot the actual, training, testing, and forecasted prices
+        # Plot the actual, training, testing and forecasted prices
         plt.figure(figsize=(12, 8))
         plt.plot(df.index[sequence_length:sequence_length + len(y_train)],
                  close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
         plt.plot(df.index[sequence_length + len(y_train) + 1:],
                  close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
         plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
-        plt.plot(forecast_week.index, forecast_week['Forecast'], color='orange', label='Forecasted Price')
+        plt.plot(forecast_week, color='orange', label='Forecasted Price')
         plt.title(f'{ticker} Stock Price Prediction')
         plt.xlabel('Date')
         plt.ylabel('Stock Price')
