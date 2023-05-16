@@ -9,13 +9,15 @@ import yfinance as yf
 from ta.momentum import rsi
 from ta.trend import macd
 from pandas.tseries.offsets import CustomBusinessHour
+import matplotlib
+from datetime import date
 
 # Create a custom business hour object
 cbh = CustomBusinessHour(start='09:30', end='16:00')
 
 # Hyperparameters
 SEQUENCE_LENGTH = 60
-PERIOD = 7
+PERIOD = 14
 LSTM_UNITS = 100
 DROPOUT_RATE = 0.2
 LEARNING_RATE = 0.0001
@@ -31,7 +33,7 @@ START_DATE = "2023-01-01"
 END_DATE = "2023-05-15"
 
 # List of stock tickers you are interested in
-tickers = ['ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
+tickers = ['ARRY']#, 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
 
 def get_stock_data(ticker):
     df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
@@ -106,19 +108,19 @@ def predict_future(df_scaled, model, close_scaler, sequence_length, df):
     forecast_df = pd.DataFrame(forecast, index=forecast_index, columns=['Forecast'])
     return forecast_df
 
-def plot_data(df, y_train, y_test, predictions, forecast_df, close_scaler, sequence_length):
+def plot_data(df, y_train, y_test, predictions, forecast_df, close_scaler, sequence_length, ticker):
     plt.figure(figsize=(12, 8))
     plt.plot(df.index[sequence_length:sequence_length + len(y_train)],
              close_scaler.inverse_transform(y_train.reshape(-1, 1)), color='blue', label='Training Data')
     plt.plot(df.index[sequence_length + len(y_train) + 1:],
              close_scaler.inverse_transform(y_test.reshape(-1, 1)), color='green', label='Testing Data')
     plt.plot(df.index[sequence_length + len(y_train) + 1:], predictions, color='red', label='Predicted Price')
-    plt.plot(forecast_df.index, forecast_df, color='orange', label='Forecasted Price')
-    plt.title('Stock Price Prediction')
+    plt.plot(forecast_df.index, forecast_df['Forecast'], color='orange', label='Forecasted Price')
+    plt.title(f'{ticker} Stock Price Prediction')
     plt.xlabel('Date')
     plt.ylabel('Stock Price')
     plt.legend()
-    plt.show()
+    plt.savefig(f'{date.today()}_{ticker}_prediction.png')
 
 def predict_stock(ticker):
     try:
@@ -130,13 +132,30 @@ def predict_stock(ticker):
         model.fit(x_train, y_train, epochs=NUM_EPOCHS, batch_size=BATCH_SIZE)
         predictions = model.predict(x_test)
         predictions = close_scaler.inverse_transform(predictions)
-        forecast = predict_future(df_scaled, model, close_scaler, SEQUENCE_LENGTH, df)
-        print("For ", ticker, ". The forecast for the next", PERIOD, " hours is:", forecast)
-        plot_yn = input("Want to plot? y/n.")
-        if plot_yn == "y":
-            plot_data(df, y_train, y_test, predictions, forecast, close_scaler, SEQUENCE_LENGTH)
+        forecast_df = predict_future(df_scaled, model, close_scaler, SEQUENCE_LENGTH, df)
+        last_real_price = close_scaler.inverse_transform([[df_scaled[-1, 0]]])[0, 0]
+        forecast_df = pd.concat([pd.DataFrame([last_real_price], columns=['Forecast'], index=[df.index[-1]]), forecast_df])
+        plot_data(df, y_train, y_test, predictions, forecast_df, close_scaler, SEQUENCE_LENGTH, ticker)
+        forecast_df['Ticker'] = ticker
+        return forecast_df
     except Exception as e:
         print("An error occurred during stock prediction:", str(e))
+        return pd.DataFrame()
 
+all_forecasts = []
 for ticker in tickers:
-    predict_stock(ticker)
+    forecast_df = predict_stock(ticker)
+    all_forecasts.append(forecast_df)
+
+all_forecasts_df = pd.concat(all_forecasts)
+all_forecasts_df = all_forecasts_df.pivot(columns='Ticker')
+
+# Calculate the percentage change
+all_forecasts_df['Percentage Change'] = all_forecasts_df.pct_change() * 100
+
+print(all_forecasts_df)
+
+all_forecasts_df.to_csv(f'{date.today()}_stocks_predicted.csv')
+
+
+
