@@ -17,7 +17,7 @@ cbh = CustomBusinessHour(start='09:30', end='16:00')
 
 # Hyperparameters
 SEQUENCE_LENGTH = 60
-PERIOD = 14
+PERIOD = 24
 LSTM_UNITS = 100
 DROPOUT_RATE = 0.2
 LEARNING_RATE = 0.0001
@@ -150,12 +150,19 @@ for ticker in tickers:
 all_forecasts_df = pd.concat(all_forecasts)
 all_forecasts_df = all_forecasts_df.pivot(columns='Ticker')
 
-# Calculate the percentage change
-all_forecasts_df['Percentage Change'] = all_forecasts_df.pct_change() * 100
+# Create a new DataFrame for the percentage change
+percentage_change_df = all_forecasts_df.pct_change() * 100
 
-print(all_forecasts_df)
+# Rename the columns in the percentage change DataFrame
+percentage_change_df.columns = [f'{col}_Percentage Change' for col in percentage_change_df.columns]
 
-all_forecasts_df.to_csv(f'{date.today()}_stocks_predicted.csv')
+# Concatenate the original DataFrame and the percentage change DataFrame
+final_df = pd.concat([all_forecasts_df, percentage_change_df], axis=1)
+
+print(final_df)
+
+final_df.to_csv(f'{date.today()}_predicted_stocks.csv')
+
 
 
 
