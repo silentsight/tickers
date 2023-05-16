@@ -14,39 +14,24 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 import requests
 from ta.momentum import rsi
 from ta.trend import macd
+from ta.volume import OnBalanceVolumeIndicator
 from bs4 import BeautifulSoup
 import requests
 import datetime
 
 
 # List of stock tickers you are interested in
-#tickers = ['BTC-USD', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO']
+tickers = ['AMZN', 'AMD', 'ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
 
 # Read the CSV file
-tickers_df = pd.read_csv('tickers051523.csv', header=None)
+#tickers_df = pd.read_csv('20230516_11_top_gainers.csv', header=None)
 
 # Convert the DataFrame to a list
-tickers = tickers_df[0].tolist()
+#tickers = tickers_df[0].tolist()
 
-SEQUENCE = 60
-PERIOD = 7
-
-# Adjustable hyperparameters
-SEQUENCE_LENGTH = 60  # Increase to capture longer-term patterns
-PERIOD = 7  # Adjust to determine the number of days to predict
-LSTM_UNITS = 100  # Increase to capture more complex patterns
-DROPOUT_RATE = 0.2  # Adjust to regularize the model and prevent overfitting
-LEARNING_RATE = 0.0001  # Experiment with different learning rates
-NUM_EPOCHS = 50  # Increase to allow the model to train for more iterations
-BATCH_SIZE = 32  # Adjust based on available memory resources
-NUM_CONV_LAYERS = 1  # Increase to capture more complex patterns
-NUM_FILTERS = 64  # Adjust to control model's capacity to capture features
-KERNEL_SIZE = 3  # Experiment with different kernel sizes
-NUM_POOLING_LAYERS = 1  # Increase to downsample feature maps
-POOL_SIZE = 2  # Adjust to control the amount of downsampling
 HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
-START_DATE = "2023-01-01"
-END_DATE = "2023-05-15"
+START_DATE = "2023-04-01"
+END_DATE = "2023-05-16"
 
 def fetch_news(ticker):
     api_key = 'cb97ada7f81ce1322db4127be756fa8d'  # Replace with your actual API key
@@ -65,6 +50,7 @@ def scrape_news(ticker):
     urls = [
         f"https://finance.yahoo.com/quote/{ticker}",
         f"https://money.cnn.com/quote/quote.html?symb={ticker}",
+        #f"https://old.reddit.com/r/stocks",
         # Add more URLs as needed
     ]
 
@@ -142,16 +128,21 @@ def tickers_to_company_names(ticker):
     return company_name
 
 def get_recommendation(score):
-    if score >= 5:
-        return "Strong Buy (Bullish)"
-    elif score >= 3:
+    if score >= 90:
+        return "Strong Buy (Very Bullish)"
+    elif score >= 80:
         return "Buy (Bullish)"
-    elif score <= -5:
-        return "Strong Sell (Bearish)"
-    elif score <= -3:
+    elif score >= 70:
+        return "Slightly Bullish"
+    elif score >= 60:
+        return "Neutral (Hold)"
+    elif score >= 50:
+        return "Slightly Bearish (Hold)"
+    elif score >= 40:
         return "Sell (Bearish)"
     else:
-        return "Hold"
+        return "Strong Sell (Very Bearish)"
+
 
 def plot_stock_analysis(ticker, df):
     # Plot the data
@@ -201,7 +192,26 @@ def analyze_stock(ticker, company_name):
         if df.empty:
             print(f"No historical stock data found for {ticker}")
             return
-
+        # Define weights for each factor
+        weights = {
+            'volatility': 10,  # Lower volatility is generally better for risk-averse investors
+            'skewness': 5,  # Extreme skewness can indicate higher risk
+            'kurtosis': 5,  # Extreme kurtosis can indicate higher risk
+            'recent_performance_1_month': 7,  # Recent performance can be a good indicator, but it's also backward-looking
+            'recent_performance_6_month': 8,  # Longer-term performance might be a slightly better indicator
+            'trend': 9,  # Following the trend can be a relatively safer strategy
+            'momentum': 7,  # Momentum can be important, but it can also change quickly
+            'rsi': 7,  # RSI is a useful indicator, but should not be overweighted
+            'macd': 7,  # MACD is a useful indicator, but should not be overweighted
+            'pe_ratio': 10,  # Financial ratios are important indicators of a company's financial health
+            'ps_ratio': 10,  # Financial ratios are important indicators of a company's financial health
+            'pb_ratio': 10,  # Financial ratios are important indicators of a company's financial health
+            'debt_equity': 10,  # Financial ratios are important indicators of a company's financial health
+            'dividend_rate': 8,  # A high dividend rate can be good for risk-averse investors
+            'short_interest': 5,  # High short interest can indicate higher risk
+            'obv_rate_of_change': 5,  # Volume changes can be indicative, but are often less important than other factors
+            'sentiment_score': 8,  # Sentiment can be a strong indicator, especially in the short term
+        }
         # Add moving averages for trend analysis
         df['MA_10'] = df['Close'].rolling(window=10).mean()
         df['MA_30'] = df['Close'].rolling(window=30).mean()
@@ -219,6 +229,33 @@ def analyze_stock(ticker, company_name):
         skewness = skew(df['Log_Returns'].dropna())
         kurt = kurtosis(df['Log_Returns'].dropna())
 
+        # Add On-Balance Volume (OBV) for volume analysis
+        obv = OnBalanceVolumeIndicator(df['Close'], df['Volume'])
+        df['OBV'] = obv.on_balance_volume()
+
+        # Calculate the 5-day rate of change in OBV
+        df['OBV Rate of Change'] = df['OBV'].pct_change(periods=5)
+
+        # Fetch additional financial data
+        stock = yf.Ticker(ticker)
+        info = stock.info
+
+        # Add beta
+        df['Beta'] = info.get('beta', np.nan)
+
+        # Fetch financial ratios and other financial data
+        try:
+            pe_ratio = info.get('trailingPE', np.nan)
+            ps_ratio = info.get('priceToSalesTrailing12Months', np.nan)
+            pb_ratio = info.get('priceToBook', np.nan)
+            debt_equity_ratio = info.get('debtToEquity', np.nan)
+            dividend_rate = info.get('dividendRate', np.nan)
+        except Exception as e:
+                print(f"An error occurred while getting finantial ratios for {ticker}: {str(e)}")
+
+        # Fetch short interest ratio
+        short_interest_ratio = info.get('shortPercentOfFloat', np.nan)
+
         # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
         volatility_threshold = 0.30  # This is an example, you can adjust this value
         skewness_threshold = 0  # This is an example, you can adjust this value
@@ -229,49 +266,68 @@ def analyze_stock(ticker, company_name):
         momentum_threshold = 0.05  # Rate of change is at least 5%
         rsi_threshold = 50  # RSI threshold value
         macd_threshold = 0  # MACD threshold value
+        # Add new thresholds for financial ratios and short interest
+        pe_ratio_threshold = 14  # example threshold
+        ps_ratio_threshold = 3  # example threshold
+        pb_ratio_threshold = 3  # example threshold
+        debt_equity_ratio_threshold = 1  # example threshold
+        dividend_rate_threshold = 0.02  # example threshold
+        short_interest_ratio_threshold = 0.1  # example threshold
+        obv_rate_of_change_threshold = 0.05  # adjust as needed
 
+        # Initialize score
         score = 0
-        if df['Volatility'].iloc[-1] < volatility_threshold:
-            score += 1
-        if skewness > skewness_threshold:
-            score += 1
-        if kurt < kurtosis_threshold:
-            score += 1
 
-        # Check recent performance (1 month and 6 months)
         recent_performance_1_month = df['Close'].iloc[-1] / df['Close'].iloc[-22] - 1
         recent_performance_6_month = df['Close'].iloc[-1] / df['Close'].iloc[-126] - 1
-        if recent_performance_1_month > recent_performance_threshold_1_month:
-            score += 1
-        if recent_performance_6_month > recent_performance_threshold_6_month:
-            score += 1
-
-        # Check trend (compare latest closing price to MA_50)
-        if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
-            score += 1
-
         momentum = df['Close'].iloc[-1] / df['Close'].iloc[-2] - 1
-        if momentum > momentum_threshold:
-            score += 1
-
-        # Check RSI
-        if df['RSI'].iloc[-1] > rsi_threshold:
-            score += 1
-
-        # Check MACD
-        if df['MACD'].iloc[-1] > macd_threshold:
-            score += 1
-        
         # Calculate latest adjusted price
         latest_adjusted_price = df['Close'].iloc[-1]
 
         average_sentiment = alt_get_average_sentiment(ticker, company_name) #get_average_sentiment(ticker, company_name)
 
+        # Calculate score for each factor
+        if df['Volatility'].iloc[-1] < volatility_threshold:
+            score += weights['volatility']
+        if skewness > skewness_threshold:
+            score += weights['skewness']
+        if kurt < kurtosis_threshold:
+            score += weights['kurtosis']
+        if recent_performance_1_month > recent_performance_threshold_1_month:
+            score += weights['recent_performance_1_month']
+        if recent_performance_6_month > recent_performance_threshold_6_month:
+            score += weights['recent_performance_6_month']
+        if df['Close'].iloc[-1] > trend_threshold * df['MA_50'].iloc[-1]:
+            score += weights['trend']
+        if momentum > momentum_threshold:
+            score += weights['momentum']
+        if df['RSI'].iloc[-1] > rsi_threshold:
+            score += weights['rsi']
+        if df['MACD'].iloc[-1] > macd_threshold:
+            score += weights['macd']
+        if pe_ratio < pe_ratio_threshold:
+            score += weights['pe_ratio']
+        if ps_ratio < ps_ratio_threshold:
+            score += weights['ps_ratio']
+        if pb_ratio < pb_ratio_threshold:
+            score += weights['pb_ratio']
+        if debt_equity_ratio < debt_equity_ratio_threshold:
+            score += weights['debt_equity']
+        if dividend_rate > dividend_rate_threshold:
+            score += weights['dividend_rate']
+        if short_interest_ratio < short_interest_ratio_threshold:
+            score += weights['short_interest']
+        if df['OBV Rate of Change'].iloc[-1] > obv_rate_of_change_threshold:
+            score += weights['obv_rate_of_change']
+
         # Adjust the score based on sentiment analysis
-        if average_sentiment >= 0.5:
-            score += 1
-        elif average_sentiment < 0:
-            score -= 1
+        if average_sentiment >= 0.1:
+            score += weights['sentiment_score']
+        elif average_sentiment < 0.01:
+            score -= weights['sentiment_score']  # be careful of the score going negative
+
+        # Normalize score to be between 0 and 100
+        score = max(0, min(score, 100))
 
         # Get recommendation based on score
         recommendation = get_recommendation(score)
@@ -290,6 +346,14 @@ def analyze_stock(ticker, company_name):
             'Momentum': [momentum],
             'RSI': [df['RSI'].iloc[-1]],
             'MACD': [df['MACD'].iloc[-1]],
+            'OBV': [df['OBV'].iloc[-1]],
+            'Beta': [df['Beta'].iloc[-1]],
+            'P/E': [pe_ratio],
+            'P/S': [ps_ratio],
+            'P/B': [pb_ratio],
+            'Debt/Eq': [debt_equity_ratio],
+            'Dividend rate': [dividend_rate],
+            'Short Interest Ratio': [short_interest_ratio],
             'Score': [score],
             'Sentiment Score': [average_sentiment],
             'Recommendation': [recommendation]  # Add this line
