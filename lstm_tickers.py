@@ -33,7 +33,7 @@ START_DATE = "2023-01-01"
 END_DATE = "2023-05-15"
 
 # List of stock tickers you are interested in
-tickers = ['ARRY']#, 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
+tickers = ['ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
 
 def get_stock_data(ticker):
     df = yf.download(ticker, start=START_DATE, end=END_DATE, interval=HISTORICAL_INTERVAL)
