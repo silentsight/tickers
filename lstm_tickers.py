@@ -206,26 +206,26 @@ def analyze_stock(ticker, company_name):
             return
         # Define weights for each factor
         weights = {
-            'volatility': 10,  # Lower volatility is generally better for risk-averse investors
-            'skewness': 5,  # Extreme skewness can indicate higher risk
-            'kurtosis': 5,  # Extreme kurtosis can indicate higher risk
-            'recent_performance_1_month': 7,  # Recent performance can be a good indicator, but it's also backward-looking
-            'recent_performance_6_month': 8,  # Longer-term performance might be a slightly better indicator
-            'trend': 9,  # Following the trend can be a relatively safer strategy
-            'momentum': 7,  # Momentum can be important, but it can also change quickly
-            'rsi': 7,  # RSI is a useful indicator, but should not be overweighted
-            'macd': 7,  # MACD is a useful indicator, but should not be overweighted
-            'pe_ratio': 10,  # Financial ratios are important indicators of a company's financial health
-            'ps_ratio': 10,  # Financial ratios are important indicators of a company's financial health
-            'pb_ratio': 10,  # Financial ratios are important indicators of a company's financial health
-            'debt_equity': 10,  # Financial ratios are important indicators of a company's financial health
-            'dividend_rate': 8,  # A high dividend rate can be good for risk-averse investors
-            'short_interest': 5,  # High short interest can indicate higher risk
-            'obv_rate_of_change': 7,  # Volume changes can be indicative, but are often less important than other factors
-            'sentiment_score': 10,  # Sentiment can be a strong indicator, especially in the short term
-            'ema': 7, # EMA (Exponential Moving Average)
-            'boll': 5, # BOLL (Bollinger Bands)
-            'vwap': 5 # VWAP (Volume Weighted Average Price)
+            'volatility': 5,  # Lower weight as high-risk strategy can tolerate higher volatility
+            'skewness': 5,  # Lower weight as high-risk strategy can tolerate higher skewness
+            'kurtosis': 5,  # Lower weight as high-risk strategy can tolerate higher kurtosis
+            'recent_performance_1_month': 10,  # Higher weight as recent performance can be a strong indicator of future growth
+            'recent_performance_6_month': 10,  # Higher weight as longer-term performance can be a strong indicator of future growth
+            'trend': 10,  # Higher weight as trend-following can be a successful high-risk strategy
+            'momentum': 10,  # Higher weight as momentum is crucial for high-risk strategies
+            'rsi': 7,  # Keep the same weight, as RSI is still useful for identifying overbought/oversold conditions
+            'macd': 7,  # Keep the same weight, as MACD is still a useful momentum indicator
+            'pe_ratio': 5,  # Lower weight as high-risk strategies can tolerate higher P/E ratios
+            'ps_ratio': 5,  # Lower weight as high-risk strategies can tolerate higher P/S ratios
+            'pb_ratio': 5,  # Lower weight as high-risk strategies can tolerate higher P/B ratios
+            'debt_equity': 5,  # Lower weight as high-risk strategies can tolerate higher debt levels
+            'dividend_rate': 5,  # Lower weight as high-risk strategies may not prioritize dividends
+            'short_interest': 7,  # Keep the same weight, as short interest can still be a useful contrarian indicator
+            'obv_rate_of_change': 10,  # Higher weight as volume changes can be indicative of strong future growth
+            'sentiment_score': 10,  # Higher weight as sentiment can be a strong indicator, especially for high-risk strategies
+            'ema': 10,  # Higher weight as EMA can be a good indicator for trend-following strategies
+            'boll': 10,  # Higher weight as Bollinger Bands can be useful for high-risk, high-reward strategies
+            'vwap': 10,  # Higher weight as VWAP can be a useful indicator for intraday trading strategies
         }
   
         # Calculate EMA
