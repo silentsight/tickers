@@ -27,13 +27,13 @@ import os
 MY_GNAPI_KEY = os.environ.get("MY_GNAPI_KEY")
 
 # List of stock tickers you are interested in
-tickers = ['WAL', 'CLRO', 'TGOPY', 'APP', 'AI', 'AMD', 'NVDA', 'RETA', 'MNDY', 'SMCI']
+#tickers = ['WAL', 'CLRO', 'TGOPY', 'APP', 'AI', 'AMD', 'NVDA', 'RETA', 'MNDY', 'SMCI']
 current_datetime = datetime.datetime.now()
 # Read the CSV file
-#tickers_df = pd.read_csv(current_datetime.strftime("%Y%m%d_%H") + "_top_gainers.csv", header=None)
+tickers_df = pd.read_csv(current_datetime.strftime("%Y%m%d_%H") + "_top_gainers.csv", header=None)
 
 # Convert the DataFrame to a list
-#tickers = tickers_df[0].tolist()
+tickers = tickers_df[0].tolist()
 
 HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
 START_DATE = "2023-01-01"
@@ -434,6 +434,6 @@ print(final_results)
 
 current_datetime = datetime.datetime.now()
 
-filename = current_datetime.strftime("%Y%m%d_%H") + "_stock_analysis_results.csv"
+filename = current_datetime.strftime("%Y%m%d_%H") + "_risky_analysis_results.csv"
 # Export the DataFrame to a CSV file
 final_results.to_csv(filename, index=False)
