@@ -15,6 +15,9 @@ import requests
 from ta.momentum import rsi
 from ta.trend import macd
 from ta.volume import OnBalanceVolumeIndicator
+from ta.volatility import BollingerBands
+from ta.volume import VolumeWeightedAveragePrice
+from ta.trend import EMAIndicator
 from bs4 import BeautifulSoup
 import requests
 import datetime
@@ -24,17 +27,17 @@ import os
 MY_GNAPI_KEY = os.environ.get("MY_GNAPI_KEY")
 
 # List of stock tickers you are interested in
-#tickers = ['AMZN', 'AMD', 'ARRY', 'INTA', 'NTCO', 'DVA', 'AKRO', 'CLRO', 'APP', 'MNDY', 'TGOPY']
-
+tickers = ['WAL', 'CLRO', 'TGOPY', 'APP', 'AI', 'AMD', 'NVDA', 'RETA', 'MNDY', 'SMCI']
+current_datetime = datetime.datetime.now()
 # Read the CSV file
-tickers_df = pd.read_csv('20230516_12_MYSTOCKs.csv', header=None)
+#tickers_df = pd.read_csv(current_datetime.strftime("%Y%m%d_%H") + "_top_gainers.csv", header=None)
 
 # Convert the DataFrame to a list
-tickers = tickers_df[0].tolist()
+#tickers = tickers_df[0].tolist()
 
 HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
-START_DATE = "2023-04-01"
-END_DATE = "2023-05-16"
+START_DATE = "2023-01-01"
+END_DATE = current_datetime.strftime("%Y-%m-%d")
 
 def fetch_news(ticker):
     api_key = MY_GNAPI_KEY  # Replace with your actual API key
@@ -220,7 +223,25 @@ def analyze_stock(ticker, company_name):
             'short_interest': 5,  # High short interest can indicate higher risk
             'obv_rate_of_change': 7,  # Volume changes can be indicative, but are often less important than other factors
             'sentiment_score': 10,  # Sentiment can be a strong indicator, especially in the short term
+            'ema': 7, # EMA (Exponential Moving Average)
+            'boll': 5, # BOLL (Bollinger Bands)
+            'vwap': 5 # VWAP (Volume Weighted Average Price)
         }
+  
+        # Calculate EMA
+        ema = EMAIndicator(df['Close'], window=14)
+        df['EMA_14'] = ema.ema_indicator()
+
+        # Calculate Bollinger Bands
+        bollinger = BollingerBands(df['Close'], window=20)
+        df['BOLL_MID'] = bollinger.bollinger_mavg()
+        df['BOLL_UPPER'] = bollinger.bollinger_hband()
+        df['BOLL_LOWER'] = bollinger.bollinger_lband()
+
+        # Calculate VWAP
+        vwap = VolumeWeightedAveragePrice(df['High'], df['Low'], df['Close'], df['Volume'])
+        df['VWAP'] = vwap.volume_weighted_average_price()
+        
         # Add moving averages for trend analysis
         df['MA_10'] = df['Close'].rolling(window=10).mean()
         df['MA_30'] = df['Close'].rolling(window=30).mean()
@@ -283,6 +304,10 @@ def analyze_stock(ticker, company_name):
         dividend_rate_threshold = 0.02  # example threshold
         short_interest_ratio_threshold = 0.1  # example threshold
         obv_rate_of_change_threshold = 0.05  # adjust as needed
+        # Add new thresholds for EMA, BOLL, and VWAP
+        ema_threshold = 1.05  # Latest closing price is at least 5% above EMA threshold value
+        boll_threshold = 1.05  # Latest closing price is at least 5% above BOLL threshold value
+        vwap_threshold = 1.05  # Latest closing price is at least 5% aboveVWAP threshold value
 
         # Initialize score
         score = 0
@@ -329,6 +354,13 @@ def analyze_stock(ticker, company_name):
         if df['OBV Rate of Change'].iloc[-1] > obv_rate_of_change_threshold:
             score += weights['obv_rate_of_change']
 
+        if df['EMA_14'].iloc[-1] > ema_threshold * df['Close'].iloc[-1]:
+            score += weights['ema']
+        if df['BOLL_MID'].iloc[-1] > boll_threshold * df['Close'].iloc[-1]:
+            score += weights['boll']
+        if df['VWAP'].iloc[-1] > vwap_threshold * df['Close'].iloc[-1]:
+            score += weights['vwap']
+
         # Adjust the score based on sentiment analysis
         if average_sentiment >= 0.1:
             score += weights['sentiment_score']
@@ -363,6 +395,9 @@ def analyze_stock(ticker, company_name):
             'Debt/Eq': [debt_equity_ratio],
             'Dividend rate': [dividend_rate],
             'Short Interest Ratio': [short_interest_ratio],
+            'EMA': [df['EMA_14'].iloc[-1]],
+            'BOLL': [df['BOLL_MID'].iloc[-1]],
+            'VWAP': [df['VWAP'].iloc[-1]],
             'Score': [score],
             'Sentiment Score': [average_sentiment],
             'Recommendation': [recommendation]  # Add this line
