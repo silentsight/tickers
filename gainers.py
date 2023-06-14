@@ -29,7 +29,7 @@ print(current_datetime.strftime("%Y-%m-%d"))
 filename = current_datetime.strftime("%Y%m%d_%H") + "_top_gainers.csv"
 
 # Your list of tickers
-tickers = ['WCC','WSFS','CLRO','HRI','GBCI','TGOPY','MRVL','FN', 'UMC','AAPL','BTC']
+tickers = ['WCC','WSFS','CLRO','HRI','GBCI','TGOPY','MRVL','FN', 'UMC','AAPL','BTC-USD']
 
 # Export to CSV file
 with open(filename, 'w', newline='') as csvfile:

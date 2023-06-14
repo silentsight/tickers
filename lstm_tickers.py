@@ -20,7 +20,7 @@ from ta.volume import VolumeWeightedAveragePrice
 from ta.trend import EMAIndicator
 from bs4 import BeautifulSoup
 import requests
-import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 import os
@@ -28,15 +28,21 @@ MY_GNAPI_KEY = os.environ.get("MY_GNAPI_KEY")
 
 # List of stock tickers you are interested in
 #tickers = ['WAL', 'CLRO', 'TGOPY', 'APP', 'AI', 'AMD', 'NVDA', 'RETA', 'MNDY', 'SMCI']
-current_datetime = datetime.datetime.now()
+current_datetime = datetime.now()
 # Read the CSV file
 tickers_df = pd.read_csv(current_datetime.strftime("%Y%m%d_%H") + "_top_gainers.csv", header=None)
 
 # Convert the DataFrame to a list
 tickers = tickers_df[0].tolist()
 
-HISTORICAL_INTERVAL = "1h"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
-START_DATE = "2023-01-01"
+HISTORICAL_INTERVAL = "1m"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
+# yfinance only allows last 7 days of 1m data fetching
+
+# Date 7 days ago
+start_date = current_datetime - timedelta(days=7)
+
+# Formatting the dates
+START_DATE = start_date.strftime("%Y-%m-%d")
 END_DATE = current_datetime.strftime("%Y-%m-%d")
 
 def fetch_news(ticker):
@@ -196,6 +202,26 @@ def plot_stock_analysis(ticker, df):
     plt.title(f'{ticker} Monte Carlo Simulation')
     plt.show()
 
+def calculate_imi(df):
+    gain = df[df['Close'] > df['Open']]['Close'] - df[df['Close'] > df['Open']]['Open']
+    loss = df[df['Open'] > df['Close']]['Open'] - df[df['Open'] > df['Close']]['Close']
+    imi = 100 * (gain.sum() / (gain.sum() + loss.sum()))
+    return imi
+
+def calculate_volume_roc(df, n=5):
+    roc = ((df['Volume'].diff(n) / df['Volume'].shift(n)) * 100)
+    return roc
+def calculate_moving_vwap(df, n=14):
+    volume = df['Volume'].rolling(n).sum()
+    vwap = (df['Close']*df['Volume']).rolling(n).sum() / volume
+    return vwap
+def calculate_stochastic_oscillator(df, n=14):
+    high = df['High'].rolling(n).max()
+    low = df['Low'].rolling(n).min()
+    stoch_osc = ((df['Close'] - low) / (high - low)) * 100
+    return stoch_osc
+
+
 def analyze_stock(ticker, company_name):
     try:
         # Fetch historical stock data
@@ -225,7 +251,12 @@ def analyze_stock(ticker, company_name):
             'sentiment_score': 10,  # Sentiment can be a strong indicator, especially in the short term
             'ema': 7, # EMA (Exponential Moving Average)
             'boll': 5, # BOLL (Bollinger Bands)
-            'vwap': 5 # VWAP (Volume Weighted Average Price)
+            'vwap': 5, # VWAP (Volume Weighted Average Price)
+             #calculations for candlesticks...
+            'imi': 10,
+            'volume_roc': 5,
+            'mvwap': 10,
+            'stoch_osc': 10
         }
   
         # Calculate EMA
@@ -286,6 +317,12 @@ def analyze_stock(ticker, company_name):
         # Fetch short interest ratio
         short_interest_ratio = info.get('shortPercentOfFloat', np.nan)
 
+        # Calculate new indicators
+        df['IMI'] = calculate_imi(df)
+        df['Volume ROC'] = calculate_volume_roc(df)
+        df['MVWAP'] = calculate_moving_vwap(df)
+        df['Stochastic Oscillator'] = calculate_stochastic_oscillator(df)
+
         # Recommendation score based on volatility, skewness, kurtosis, recent performance, trend, and momentum
         volatility_threshold = 0.30  # This is an example, you can adjust this value
         skewness_threshold = 0  # This is an example, you can adjust this value
@@ -308,6 +345,11 @@ def analyze_stock(ticker, company_name):
         ema_threshold = 1.05  # Latest closing price is at least 5% above EMA threshold value
         boll_threshold = 1.05  # Latest closing price is at least 5% above BOLL threshold value
         vwap_threshold = 1.05  # Latest closing price is at least 5% aboveVWAP threshold value
+        # Add new thresholds for the new indicators
+        imi_threshold = 70  # Adjust as needed
+        volume_roc_threshold = 0  # Adjust as needed
+        mvwap_threshold = 1.05  # Adjust as needed
+        stoch_osc_threshold = 80  # Adjust as needed
 
         # Initialize score
         score = 0
@@ -361,6 +403,15 @@ def analyze_stock(ticker, company_name):
         if df['VWAP'].iloc[-1] > vwap_threshold * df['Close'].iloc[-1]:
             score += weights['vwap']
 
+        if df['IMI'].iloc[-1] > imi_threshold:
+            score += weights['imi']
+        if df['Volume ROC'].iloc[-1] > volume_roc_threshold:
+            score += weights['volume_roc']
+        if df['Close'].iloc[-1] > vwap_threshold * df['MVWAP'].iloc[-1]:
+            score += weights['mvwap']
+        if df['Stochastic Oscillator'].iloc[-1] > stoch_osc_threshold:
+            score += weights['stoch_osc']
+
         # Adjust the score based on sentiment analysis
         if average_sentiment >= 0.1:
             score += weights['sentiment_score']
@@ -398,9 +449,15 @@ def analyze_stock(ticker, company_name):
             'EMA': [df['EMA_14'].iloc[-1]],
             'BOLL': [df['BOLL_MID'].iloc[-1]],
             'VWAP': [df['VWAP'].iloc[-1]],
+            # New metrics for hourly candlesticks...
+            'IMI': [df['IMI'].iloc[-1]],
+            'Volume ROC': [df['Volume ROC'].iloc[-1]],
+            'MVWAP': [df['MVWAP'].iloc[-1]],
+            'Stochastic Oscillator': [df['Stochastic Oscillator'].iloc[-1]],
+            # calculate score
             'Score': [score],
             'Sentiment Score': [average_sentiment],
-            'Recommendation': [recommendation]  # Add this line
+            'Recommendation': [recommendation]
         })
         return results
 
@@ -432,8 +489,8 @@ final_results = pd.concat(all_results)
 final_results = final_results.sort_values(by='Score', ascending=False)
 print(final_results)
 
-current_datetime = datetime.datetime.now()
+current_datetime = datetime.now()
 
-filename = current_datetime.strftime("%Y%m%d_%H") + "_stock_analysis_results.csv"
+filename = current_datetime.strftime("%Y%m%d_%H") + "hourlies_stock_analysis.csv"
 # Export the DataFrame to a CSV file
 final_results.to_csv(filename, index=False)
