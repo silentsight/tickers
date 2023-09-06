@@ -422,37 +422,38 @@ def main():
     filename = current_datetime.strftime("%Y%m%d_%H") + "_analysis_results.csv"
 
     # Your list of extra tickers
-    extra_tickers = ['AAPL', 'GOOGL', 'AMZN']  # You can add more tickers here
+    extra_tickers = ['WCC', 'TSM' ,'AMD', 'AMZN', 'NVDA', 'GOOGL', 'AAPL']  # You can add more tickers here
 
     # Combine top gainers and extra tickers
     all_tickers = list(set(top_gainers + extra_tickers))
     
     # Perform initial analysis for each stock
-    all_results = []  # List to store the results DataFrames
+    all_results = []
 
     for ticker in all_tickers:
         try:
             company_name = tickers_to_company_names(ticker)
             results_df = analyze_stock(ticker, company_name)
-            all_results.append(results_df)  # Append the result DataFrame to the list
+            if results_df is not None:  # Check if DataFrame is not None
+                #print("Shape of results_df:", results_df.shape)  # Debug line
+                #print("Columns of results_df:", results_df.columns)  # Debug line
+                all_results.append(results_df)
             print(f"Completed analysis for {ticker}.")
         except Exception as e:
             print(f"An error occurred while analyzing {ticker}: {str(e)}")
 
-    # Concatenate all results DataFrames into a single DataFrame
-    final_results = pd.concat(all_results, ignore_index=True, axis=0)
+    # Concatenate all DataFrames into a single DataFrame
+    if all_results:  # Check if list is not empty
+        final_results = pd.concat(all_results, ignore_index=True)
+        #print("Shape of final_results:", final_results.shape)  # Debug line
+        #print("Columns of final_results:", final_results.columns)  # Debug line
 
-    # Sort the DataFrame based on the score and display the result
-    final_results = final_results.sort_values(by='Score', ascending=False)
-
-    print(all_results)
-         
-    #Export to Spreadsheet
-    try:
-        df = pd.DataFrame(all_results)
-        df.to_csv(filename, index=False)
-    except Exception as e:
-        print(f"An error occurred while printing to csv: {str(e)}")
+        # Sort and save to CSV
+        final_results = final_results.sort_values(by='Score', ascending=False)
+        try:
+            final_results.to_csv(filename, index=False)
+        except Exception as e:
+            print(f"An error occurred while printing to csv: {str(e)}")
 
 
 if __name__ == "__main__":
