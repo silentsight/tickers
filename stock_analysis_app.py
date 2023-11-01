@@ -28,6 +28,8 @@ current_datetime = datetime.datetime.now()
 HISTORICAL_INTERVAL = "1d"  # Configure the historical data interval, e.g., "1h", "30m", "15m", etc.
 START_DATE = "2023-01-01"
 END_DATE = current_datetime.strftime("%Y-%m-%d")
+# Your list of extra tickers
+extra_tickers = ['WCC', 'AAPL' ,'TSM', 'TSLA', 'LBRT', 'GOOGL', 'OVV', 'BTE', 'HPK']  # You can add more tickers here
 
 def fetch_stock_data(ticker):
     """
@@ -405,7 +407,9 @@ def tickers_to_company_names(ticker):
     stock = yf.Ticker(ticker)
     company_info = stock.info
     if company_info is not None:
-        company_name = company_info.get('longName')
+        company_name = company_info.get('symbol')
+        #print(f"Info for {ticker}: {company_info}")
+
     if not company_name:
         print(f"Company name not found for ticker: {ticker}")
     return company_name
@@ -420,9 +424,6 @@ def main():
 
     current_datetime = datetime.datetime.now()
     filename = current_datetime.strftime("%Y%m%d_%H") + "_analysis_results.csv"
-
-    # Your list of extra tickers
-    extra_tickers = ['WCC', 'TSM' ,'AMD', 'AMZN', 'NVDA', 'GOOGL', 'AAPL']  # You can add more tickers here
 
     # Combine top gainers and extra tickers
     all_tickers = list(set(top_gainers + extra_tickers))
